@@ -146,7 +146,7 @@ panel_install(){
 
     mkdir -p /var/www/pterodactyl
     cd /var/www/pterodactyl || exit 1
-    curl -Lo panel.tar.gz https://github.com/pterodactyl/panel/releases/latest/download/panel.tar.gz
+    curl -Lo panel.tar.gz https://github.com/ghost-dev-gr/panel/releases/latest/download/panel.tar.gz
     tar -xzvf panel.tar.gz
     echo 'creating bootstrap/cache'
     mkdir -p /var/www/pterodactyl/bootstrap/cache
