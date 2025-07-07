@@ -10,7 +10,7 @@
 
 LOGFILE="/var/log/pterodactyl-installer.log"
 exec > >(tee -a "$LOGFILE") 2>&1
-
+alias php='/usr/bin/php8.2'
 dist="$(. /etc/os-release && echo "$ID")"
 version="$(. /etc/os-release && echo "$VERSION_ID")"
 
@@ -138,8 +138,10 @@ panel_install(){
     sed -i 's/character-set-collations = utf8mb4=uca1400_ai_ci/character-set-collations = utf8mb4=utf8mb4_general_ci/' /etc/mysql/mariadb.conf.d/50-server.cnf || true
     systemctl restart mariadb
 
-    # PHP 8.3 for Ubuntu 22.04
-    apt -y install php8.3 php8.3-{cli,gd,mysql,pdo,mbstring,tokenizer,bcmath,xml,fpm,curl,zip}
+    
+    # PHP 8.2 for Ubuntu 22.04 (Pterodactyl only supports up to 8.2 as of July 2024)
+    apt -y install php8.2 php8.2-{cli,gd,mysql,pdo,mbstring,tokenizer,bcmath,xml,fpm,curl,zip}
+    update-alternatives --set php /usr/bin/php8.2
     curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
     mkdir -p /var/www/pterodactyl
