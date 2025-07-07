@@ -29,17 +29,35 @@ panel_conf(){
 
     [ "$SSL" == true ] && appurl="https://$PANELFQDN" || appurl="http://$PANELFQDN"
     DBPASSWORD=$(tr -dc 'a-zA-Z0-9' </dev/urandom | head -c 16)
-    echo "[INFO] Creating database and user..."
-    mariadb -u root -e "CREATE USER 'pterodactyl'@'127.0.0.1' IDENTIFIED BY '$DBPASSWORD';"
-    mariadb -u root -e "CREATE DATABASE panel;"
+    echo "[INFO] Creating database and user (safe idempotent)..."
+    mariadb -u root -e "CREATE USER IF NOT EXISTS 'pterodactyl'@'127.0.0.1' IDENTIFIED BY '$DBPASSWORD';"
+    mariadb -u root -e "CREATE DATABASE IF NOT EXISTS panel;"
     mariadb -u root -e "GRANT ALL PRIVILEGES ON panel.* TO 'pterodactyl'@'127.0.0.1' WITH GRANT OPTION;"
     mariadb -u root -e "FLUSH PRIVILEGES;"
-    echo "[INFO] Configuring environment..."
-    php artisan p:environment:setup --author="$EMAIL" --url="$appurl" --timezone="CET" --telemetry=false --cache="redis" --session="redis" --queue="redis" --redis-host="localhost" --redis-pass="null" --redis-port="6379" --settings-ui=true
-    php artisan p:environment:database --host="127.0.0.1" --port="3306" --database="panel" --username="pterodactyl" --password="$DBPASSWORD"
-    php artisan migrate --seed --force
-    php artisan p:user:make --email="$EMAIL" --username="$USERNAME" --name-first="$FIRSTNAME" --name-last="$LASTNAME" --password="$PASSWORD" --admin=1
+
+    echo "[INFO] Fixing permissions and cleaning cache..."
+    cd /var/www/pterodactyl
+    mkdir -p bootstrap/cache storage/framework storage/logs
+    chown -R www-data:www-data /var/www/pterodactyl
+    chmod -R 755 bootstrap/cache storage
+
+    # Remove any broken or partial installs
+    rm -rf vendor composer.lock bootstrap/cache/*
+
+    echo "[INFO] (Re)installing composer dependencies..."
+    sudo -u www-data composer install --no-dev --optimize-autoloader --no-interaction
+
+    echo "[INFO] Generating app key and config cache..."
+    sudo -u www-data php artisan key:generate --force
+
+    echo "[INFO] Running artisan environment setup..."
+    sudo -u www-data php artisan p:environment:setup --author="$EMAIL" --url="$appurl" --timezone="CET" --telemetry=false --cache="redis" --session="redis" --queue="redis" --redis-host="localhost" --redis-pass="null" --redis-port="6379" --settings-ui=true
+    sudo -u www-data php artisan p:environment:database --host="127.0.0.1" --port="3306" --database="panel" --username="pterodactyl" --password="$DBPASSWORD"
+    sudo -u www-data php artisan migrate --seed --force
+    sudo -u www-data php artisan p:user:make --email="$EMAIL" --username="$USERNAME" --name-first="$FIRSTNAME" --name-last="$LASTNAME" --password="$PASSWORD" --admin=1
+
     chown -R www-data:www-data /var/www/pterodactyl/*
+
     curl -o /etc/systemd/system/pteroq.service https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/configs/pteroq.service
     (crontab -l ; echo "* * * * * php /var/www/pterodactyl/artisan schedule:run >> /dev/null 2>&1") | crontab -
     systemctl enable --now redis-server
@@ -61,6 +79,7 @@ panel_conf(){
         systemctl restart nginx
     fi
 }
+
 
 wings_install_and_activate(){
     echo "[INFO] Installing Wings (node) with SSL on port 8443..."
