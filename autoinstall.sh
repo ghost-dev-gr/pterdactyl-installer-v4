@@ -8,6 +8,9 @@
 #  You may not remove this line                                        #
 ########################################################################
 
+LOGFILE="/var/log/pterodactyl-installer.log"
+exec > >(tee -a "$LOGFILE") 2>&1
+
 dist="$(. /etc/os-release && echo "$ID")"
 version="$(. /etc/os-release && echo "$VERSION_ID")"
 
@@ -16,17 +19,22 @@ version="$(. /etc/os-release && echo "$VERSION_ID")"
 finish(){
     clear
     echo ""
-    echo "[!] Panel installed."
+    echo "[!] Panel and node (wings) installed and running."
+    echo "[!] See install log at $LOGFILE"
     echo ""
 }
 
 panel_conf(){
+    echo "[INFO] Starting panel configuration..."
+
     [ "$SSL" == true ] && appurl="https://$PANELFQDN" || appurl="http://$PANELFQDN"
     DBPASSWORD=$(tr -dc 'a-zA-Z0-9' </dev/urandom | head -c 16)
+    echo "[INFO] Creating database and user..."
     mariadb -u root -e "CREATE USER 'pterodactyl'@'127.0.0.1' IDENTIFIED BY '$DBPASSWORD';"
     mariadb -u root -e "CREATE DATABASE panel;"
     mariadb -u root -e "GRANT ALL PRIVILEGES ON panel.* TO 'pterodactyl'@'127.0.0.1' WITH GRANT OPTION;"
     mariadb -u root -e "FLUSH PRIVILEGES;"
+    echo "[INFO] Configuring environment..."
     php artisan p:environment:setup --author="$EMAIL" --url="$appurl" --timezone="CET" --telemetry=false --cache="redis" --session="redis" --queue="redis" --redis-host="localhost" --redis-pass="null" --redis-port="6379" --settings-ui=true
     php artisan p:environment:database --host="127.0.0.1" --port="3306" --database="panel" --username="pterodactyl" --password="$DBPASSWORD"
     php artisan migrate --seed --force
@@ -37,40 +45,64 @@ panel_conf(){
     systemctl enable --now redis-server
     systemctl enable --now pteroq.service
 
-    if [ "$WINGS" == true ]; then
-        curl -sSL https://get.docker.com/ | CHANNEL=stable bash
-        systemctl enable --now docker
-        mkdir -p /etc/pterodactyl
-        apt-get -y install curl tar unzip
-        curl -L -o /usr/local/bin/wings "https://github.com/pterodactyl/wings/releases/latest/download/wings_linux_$( [[ "$(uname -m)" == "x86_64" ]] && echo "amd64" || echo "arm64")"
-        curl -o /etc/systemd/system/wings.service https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/configs/wings.service
-        chmod u+x /usr/local/bin/wings
-
-        # Pull config example and patch it with FQDNs
-        curl -o /etc/pterodactyl/config.yml https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/configs/config.example.yml
-        sed -i "s@<panel_domain>@${PANELFQDN}@g" /etc/pterodactyl/config.yml
-        sed -i "s@<node_domain>@${NODEFQDN}@g" /etc/pterodactyl/config.yml
-    fi
-
     if [ "$SSL" == true ]; then
+        echo "[INFO] Setting up nginx with SSL for the panel..."
         rm -rf /etc/nginx/sites-enabled/default
         curl -o /etc/nginx/sites-enabled/pterodactyl.conf https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/configs/pterodactyl-nginx-ssl.conf
         sed -i -e "s@<domain>@${PANELFQDN}@g" /etc/nginx/sites-enabled/pterodactyl.conf
         systemctl stop nginx
         certbot certonly --standalone -d $PANELFQDN --staple-ocsp --no-eff-email -m $EMAIL --agree-tos
         systemctl start nginx
-        finish
     else
+        echo "[INFO] Setting up nginx without SSL for the panel..."
         rm -rf /etc/nginx/sites-enabled/default
         curl -o /etc/nginx/sites-enabled/pterodactyl.conf https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/configs/pterodactyl-nginx.conf
         sed -i -e "s@<domain>@${PANELFQDN}@g" /etc/nginx/sites-enabled/pterodactyl.conf
         systemctl restart nginx
-        finish
     fi
 }
 
-panel_install(){
+wings_install_and_activate(){
+    echo "[INFO] Installing Wings (node) with SSL on port 8443..."
+
+    curl -sSL https://get.docker.com/ | CHANNEL=stable bash
+    systemctl enable --now docker
+    mkdir -p /etc/pterodactyl
+    apt-get -y install curl tar unzip
+
+    curl -L -o /usr/local/bin/wings "https://github.com/pterodactyl/wings/releases/latest/download/wings_linux_$( [[ "$(uname -m)" == "x86_64" ]] && echo "amd64" || echo "arm64")"
+    chmod u+x /usr/local/bin/wings
+    curl -o /etc/systemd/system/wings.service https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/configs/wings.service
+
+    echo "[INFO] Requesting SSL certificate for node domain $NODEFQDN..."
+    certbot certonly --standalone --preferred-challenges http -d "$NODEFQDN" --agree-tos --no-eff-email -m "$EMAIL"
+
+    echo "[INFO] Downloading node config and applying settings..."
+    curl -o /etc/pterodactyl/config.yml https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/configs/config.example.yml
+    sed -i "s@<panel_domain>@${PANELFQDN}@g" /etc/pterodactyl/config.yml
+    sed -i "s@<node_domain>@${NODEFQDN}@g" /etc/pterodactyl/config.yml
+    sed -i "s@127.0.0.1:8080@0.0.0.0:8443@g" /etc/pterodactyl/config.yml
+    sed -i "s@ssl: false@ssl: true@g" /etc/pterodactyl/config.yml
+    sed -i "s@/etc/letsencrypt/live/<node_domain>/fullchain.pem@/etc/letsencrypt/live/${NODEFQDN}/fullchain.pem@g" /etc/pterodactyl/config.yml
+    sed -i "s@/etc/letsencrypt/live/<node_domain>/privkey.pem@/etc/letsencrypt/live/${NODEFQDN}/privkey.pem@g" /etc/pterodactyl/config.yml
+
+    systemctl daemon-reload
+    systemctl enable --now wings
+
     echo ""
+    echo "[!] Wings installed and started at https://$NODEFQDN:8443"
+    echo "[!] To finish node registration:"
+    echo "   1. Log in to your panel at https://$PANELFQDN"
+    echo "   2. Add a node with FQDN $NODEFQDN, scheme https, port 8443"
+    echo "   3. Download the node config and place it at /etc/pterodactyl/config.yml"
+    echo "   4. Restart wings with: systemctl restart wings"
+    echo ""
+    echo "[!] The above can be automated with API, but needs panel setup first."
+}
+
+panel_install(){
+    echo "[INFO] Starting system & dependency install..."
+
     apt update
     apt install certbot -y
 
@@ -122,7 +154,7 @@ fi
 
 echo "Checking your OS.."
 if [ "$dist" = "ubuntu" ] && [ "$version" = "22.04" ]; then
-    echo "Welcome to Autoinstall of Pterodactyl Panel"
+    echo "[INFO] Welcome to Autoinstall of Pterodactyl Panel & Node"
     echo "Quick summary before the install begins:"
     echo ""
     echo "Panel FQDN (URL): $PANELFQDN"
@@ -136,9 +168,13 @@ if [ "$dist" = "ubuntu" ] && [ "$version" = "22.04" ]; then
     echo "Wings install: $WINGS"
     echo "Node FQDN: $NODEFQDN"
     echo ""
-    echo "Starting automatic installation in 5 seconds"
+    echo "[INFO] Starting automatic installation in 5 seconds..."
     sleep 5s
     panel_install
+    if [ "$WINGS" == true ]; then
+        wings_install_and_activate
+    fi
+    finish
 else
     echo "Your OS, $dist $version, is not supported"
     exit 1
