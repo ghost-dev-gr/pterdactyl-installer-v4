@@ -81,14 +81,18 @@ db_setup() {
 
 install_panel() {
     echo "[INFO] Setting up panel files in $PANEL_PATH..."
+    mkdir -p /var
+    mkdir -p /var/www
     mkdir -p "$PANEL_PATH"
     cd "$PANEL_PATH"
     curl -Lo panel.tar.gz https://github.com/pterodactyl/panel/releases/latest/download/panel.tar.gz
-    tar -xzf panel.tar.gz && rm panel.tar.gz
+    tar -xzvf panel.tar.gz
+    chmod -R 755 storage/* bootstrap/cache/
     cp .env.example .env
-    composer install --no-dev --optimize-autoloader --no-interaction
+    command composer install --no-dev --optimize-autoloader --no-interaction
     php artisan key:generate --force
 }
+
 
 artisan_config() {
     local URL_PROTO
