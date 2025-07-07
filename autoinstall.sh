@@ -81,9 +81,14 @@ panel_setup() {
     if [[ "$os_type" == "ubuntu" && "$os_release" == "22.04" ]]; then
         apt install -y software-properties-common curl apt-transport-https ca-certificates gnupg lsb-release
         add-apt-repository -y ppa:ondrej/php
-        curl -fsSL https://packages.redis.io/gpg | gpg --dearmor -o /usr/share/keyrings/redis.gpg
-        echo "deb [signed-by=/usr/share/keyrings/redis.gpg] https://packages.redis.io/deb $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/redis.list
-        curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | bash
+
+        # Correct permissions and sudo for keyring operations
+        curl -fsSL https://packages.redis.io/gpg | sudo gpg --dearmor -o /usr/share/keyrings/redis.gpg
+        echo "deb [signed-by=/usr/share/keyrings/redis.gpg] https://packages.redis.io/deb $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/redis.list
+
+        # Follow redirects, and use sudo for MariaDB repo
+        curl -sSL https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
+
         apt update
     fi
 
@@ -107,6 +112,7 @@ panel_setup() {
     apt install -y nginx
     configure_panel
 }
+
 
 
 # Params
