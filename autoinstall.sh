@@ -93,6 +93,8 @@ panel_setup() {
     apt install -y php8.3 php8.3-{cli,gd,mysql,pdo,mbstring,tokenizer,bcmath,xml,fpm,curl,zip}
     curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
+    export COMPOSER_ALLOW_SUPERUSER=1
+
     mkdir -p /var/www/panel
     cd /var/www/panel
     curl -Lo panel.tar.gz "https://github.com/pterodactyl/panel/releases/latest/download/panel.tar.gz"
@@ -105,6 +107,7 @@ panel_setup() {
     apt install -y nginx
     configure_panel
 }
+
 
 # Params
 DOMAIN="$1"
