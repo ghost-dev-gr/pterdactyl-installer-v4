@@ -151,7 +151,7 @@ panel_install(){
     chown -R www-data:www-data /var/www/pterodactyl
     chmod -R 755 /var/www/pterodactyl/bootstrap/cache
     cp .env.example .env
-    composer install --no-dev --optimize-autoloader --no-interaction
+    command composer install --no-dev --optimize-autoloader --no-interaction
     php artisan key:generate --force
     apt install nginx -y
     panel_conf
