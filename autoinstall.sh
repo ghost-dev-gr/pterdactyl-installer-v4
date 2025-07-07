@@ -127,7 +127,10 @@ panel_install(){
     cd /var/www/pterodactyl || exit 1
     curl -Lo panel.tar.gz https://github.com/ghost-dev-gr/panel/releases/latest/download/panel.tar.gz
     tar -xzvf panel.tar.gz
-    chmod -R 755 storage/* bootstrap/cache/
+    echo 'creating bootstrap/cache'
+    mkdir -p /var/www/pterodactyl/bootstrap/cache
+    chown -R www-data:www-data /var/www/pterodactyl
+    chmod -R 755 /var/www/pterodactyl/bootstrap/cache
     cp .env.example .env
     composer install --no-dev --optimize-autoloader --no-interaction
     php artisan key:generate --force
