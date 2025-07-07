@@ -1,18 +1,16 @@
 #!/usr/bin/env bash
 
 ################################################################################
-#                                                                              #
-#             PteroNova Automatic Installer for Ubuntu 22.04                   #
-#                   (C) 2024 Ghost Dev Team - MIT License                     #
-#     https://github.com/ghost-dev-gr/pterdactyl-installer-v4                  #
-#                                                                              #
+#                   PteroNova Universal Installer (2024)                       #
+#        Cleanroom Rewrite - For Ubuntu 22.04, NGINX, Wings (Node)             #
+#         Maintained by Ghost Dev Team | MIT License | v4.0+                   #
 ################################################################################
 
 set -euo pipefail
 
-######################################
-#          GLOBAL VARIABLES          #
-######################################
+##############################
+#      GLOBAL VARS           #
+##############################
 PANEL_DOMAIN=""
 USE_SSL=""
 ADMIN_EMAIL=""
@@ -21,17 +19,18 @@ FIRST_NAME=""
 LAST_NAME=""
 ADMIN_PASS=""
 DEPLOY_WINGS=""
-MYSQL_RANDOM_PASS=""
-PANEL_URL=""
-MYSQL_USER="paneldbuser"
-MYSQL_DATABASE="paneldb"
-PANEL_ROOT="/srv/pteronova"
-CONFIG_BASE="https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/configs"
+
+DB_USER="pterodactyl"
+DB_NAME="panel"
+DB_PASS=""
+PANEL_ROOT="/var/www/pterodactyl"
+NGINX_CONF_NAME="pterodactyl.conf"
+CONFIG_BASE_URL="https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/configs"
 LOG_FILE="/root/pteronova-install.log"
 
-######################################
-#           ARGUMENT PARSER          #
-######################################
+##############################
+#     ARGUMENT PARSER        #
+##############################
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -48,117 +47,101 @@ parse_args() {
         shift
     done
 
-    # Required fields
-    for var in PANEL_DOMAIN USE_SSL ADMIN_EMAIL ADMIN_USER FIRST_NAME LAST_NAME ADMIN_PASS DEPLOY_WINGS; do
-        if [ -z "${!var}" ]; then
-            echo "[Error] Missing required parameter: $var"
+    # Validate
+    for v in PANEL_DOMAIN USE_SSL ADMIN_EMAIL ADMIN_USER FIRST_NAME LAST_NAME ADMIN_PASS DEPLOY_WINGS; do
+        if [ -z "${!v}" ]; then
+            echo "[Error] Missing required argument: $v"
             exit 1
         fi
     done
 }
 
-######################################
-#          LOGGING FUNCTION          #
-######################################
-log() {
-    echo -e "$(date +"%F %T") [INFO] $*" | tee -a "$LOG_FILE"
-}
-log_error() {
-    echo -e "$(date +"%F %T") [ERROR] $*" | tee -a "$LOG_FILE" >&2
-}
+##############################
+#         LOGGING            #
+##############################
+log()       { echo -e "$(date "+%F %T") [INFO] $*" | tee -a "$LOG_FILE"; }
+log_error() { echo -e "$(date "+%F %T") [ERROR] $*" | tee -a "$LOG_FILE" >&2; }
 
-######################################
-#      ENVIRONMENT AND OS CHECK      #
-######################################
-verify_environment() {
-    log "Checking OS compatibility..."
-    if ! grep -q "Ubuntu 22.04" /etc/os-release; then
-        log_error "This script only supports Ubuntu 22.04."
-        exit 1
-    fi
-
-    if [[ "$(id -u)" -ne 0 ]]; then
-        log_error "You must run this script as root."
-        exit 1
-    fi
+##############################
+#     ENVIRONMENT CHECK      #
+##############################
+verify_env() {
+    log "Checking environment..."
+    grep -q "Ubuntu 22.04" /etc/os-release || { log_error "Ubuntu 22.04 required."; exit 1; }
+    [ "$(id -u)" = "0" ] || { log_error "Script must be run as root."; exit 1; }
 }
 
-######################################
-#         PACKAGE INSTALLATION       #
-######################################
+##############################
+#      INSTALL PACKAGES      #
+##############################
 install_packages() {
     export DEBIAN_FRONTEND=noninteractive
-    log "Updating system packages..."
+    log "Updating apt sources..."
     apt-get update -qq
 
-    log "Installing base dependencies (software-properties-common, curl, etc)..."
-    apt-get install -yqq software-properties-common lsb-release ca-certificates apt-transport-https gnupg2 curl > /dev/null
-
-    log "Ensuring PHP 8.3 repository (ppa:ondrej/php) is present..."
-    # Only add PPA if it's not already present
+    log "Installing base tools and adding PHP 8.3 repo if needed..."
+    apt-get install -yqq software-properties-common curl lsb-release ca-certificates apt-transport-https gnupg2 > /dev/null
     if ! grep -q "ondrej/php" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null; then
         add-apt-repository -y ppa:ondrej/php
         apt-get update -qq
-    else
-        log "PHP PPA already present, skipping add-apt-repository."
     fi
 
-    log "Installing all main dependencies (nginx, MariaDB, PHP 8.3, Redis, Docker, etc)..."
+    log "Installing panel dependencies (nginx, MariaDB, PHP, Redis, etc)..."
     apt-get install -yqq \
         nginx mariadb-server redis-server tar unzip git wget \
         php8.3 php8.3-cli php8.3-fpm php8.3-mysql php8.3-xml php8.3-curl php8.3-zip php8.3-mbstring php8.3-bcmath php8.3-gd php8.3-tokenizer \
         certbot python3-certbot-nginx docker.io > /dev/null
 
-    log "Installing Composer (PHP dependency manager)..."
+    log "Ensuring Composer is present..."
     if ! command -v composer >/dev/null 2>&1; then
         curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
     fi
-
-    log "All required system packages installed."
+    log "All required system packages are installed."
 }
 
-######################################
-#         DATABASE SETUP             #
-######################################
+##############################
+#    MARIADB DATABASE SETUP  #
+##############################
 setup_database() {
-    log "Configuring MariaDB database and user..."
-    MYSQL_RANDOM_PASS="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24)"
+    log "Configuring MariaDB panel user/database..."
+    DB_PASS="$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24)"
     systemctl enable --now mariadb
     mysql -u root <<EOF
-CREATE DATABASE IF NOT EXISTS \`${MYSQL_DATABASE}\`;
-CREATE USER IF NOT EXISTS '${MYSQL_USER}'@'127.0.0.1' IDENTIFIED BY '${MYSQL_RANDOM_PASS}';
-GRANT ALL PRIVILEGES ON \`${MYSQL_DATABASE}\`.* TO '${MYSQL_USER}'@'127.0.0.1';
+CREATE DATABASE IF NOT EXISTS \`${DB_NAME}\`;
+CREATE USER IF NOT EXISTS '${DB_USER}'@'127.0.0.1' IDENTIFIED BY '${DB_PASS}';
+GRANT ALL PRIVILEGES ON \`${DB_NAME}\`.* TO '${DB_USER}'@'127.0.0.1';
 FLUSH PRIVILEGES;
 EOF
-    log "MariaDB user: ${MYSQL_USER} / Database: ${MYSQL_DATABASE}"
+    log "Database and user ready."
 }
 
-######################################
-#         PANEL INSTALLATION          #
-######################################
+##############################
+#      PANEL INSTALLATION     #
+##############################
 deploy_panel() {
-    log "Creating Pterodactyl panel directory at $PANEL_ROOT ..."
+    log "Preparing $PANEL_ROOT directory..."
     mkdir -p "$PANEL_ROOT"
     cd "$PANEL_ROOT"
-    log "Downloading latest Pterodactyl Panel release..."
-    curl -sL https://github.com/pterodactyl/panel/releases/latest/download/panel.tar.gz -o panel.tar.gz
+    if [ ! -f panel.tar.gz ]; then
+        log "Downloading latest panel release..."
+        curl -sL https://github.com/pterodactyl/panel/releases/latest/download/panel.tar.gz -o panel.tar.gz
+    fi
     tar -xzf panel.tar.gz
-    rm panel.tar.gz
+    rm -f panel.tar.gz
 
-    cp .env.example .env
-    log "Installing panel PHP dependencies with Composer..."
+    cp -f .env.example .env
+    log "Installing PHP dependencies..."
     composer install --no-dev --optimize-autoloader --no-interaction
 
-    log "Generating panel encryption key..."
+    log "Generating application key..."
     php artisan key:generate --force
 
+    PANEL_URL="http://${PANEL_DOMAIN}"
     if [ "${USE_SSL,,}" = "true" ]; then
         PANEL_URL="https://${PANEL_DOMAIN}"
-    else
-        PANEL_URL="http://${PANEL_DOMAIN}"
     fi
 
-    log "Setting up Pterodactyl environment..."
+    log "Configuring panel environment..."
     php artisan p:environment:setup \
         --author="$ADMIN_EMAIL" \
         --url="$PANEL_URL" \
@@ -172,112 +155,111 @@ deploy_panel() {
         --redis-port="6379" \
         --settings-ui=true
 
-    log "Setting up panel database credentials..."
+    log "Setting up database connection..."
     php artisan p:environment:database \
         --host="127.0.0.1" \
         --port="3306" \
-        --database="${MYSQL_DATABASE}" \
-        --username="${MYSQL_USER}" \
-        --password="${MYSQL_RANDOM_PASS}"
+        --database="$DB_NAME" \
+        --username="$DB_USER" \
+        --password="$DB_PASS"
 
     log "Migrating and seeding database..."
     php artisan migrate --seed --force
 
     log "Creating admin user..."
     php artisan p:user:make \
-        --email="${ADMIN_EMAIL}" \
-        --username="${ADMIN_USER}" \
-        --name-first="${FIRST_NAME}" \
-        --name-last="${LAST_NAME}" \
-        --password="${ADMIN_PASS}" \
+        --email="$ADMIN_EMAIL" \
+        --username="$ADMIN_USER" \
+        --name-first="$FIRST_NAME" \
+        --name-last="$LAST_NAME" \
+        --password="$ADMIN_PASS" \
         --admin=1
 
     chown -R www-data:www-data "$PANEL_ROOT"
-    log "Panel file permissions set."
+    log "Panel files/permissions set."
 }
 
-######################################
-#       SYSTEMD SERVICES SETUP       #
-######################################
+##############################
+#    SYSTEMD SERVICE SETUP    #
+##############################
 configure_services() {
-    log "Setting up Pteroq queue service..."
-    curl -sL "$CONFIG_BASE/pteroq.service" -o /etc/systemd/system/pteroq.service
+    log "Setting up queue runner service..."
+    curl -sL "$CONFIG_BASE_URL/pteroq.service" -o /etc/systemd/system/pteroq.service
     systemctl daemon-reload
     systemctl enable --now redis-server pteroq.service
 
-    log "Configuring cronjob for schedule tasks..."
+    log "Configuring panel schedule cron..."
     (crontab -l 2>/dev/null; echo "* * * * * php $PANEL_ROOT/artisan schedule:run >> /dev/null 2>&1") | crontab -
 }
 
-######################################
-#        NGINX + SSL SETUP           #
-######################################
+##############################
+#      NGINX & SSL SETUP      #
+##############################
 configure_nginx() {
-    log "Configuring NGINX webserver..."
+    log "Setting up NGINX webserver config..."
     rm -f /etc/nginx/sites-enabled/default
     if [ "${USE_SSL,,}" = "true" ]; then
-        curl -sL "$CONFIG_BASE/pterodactyl-nginx-ssl.conf" -o /etc/nginx/sites-enabled/pteronova.conf
-        sed -i "s|<domain>|${PANEL_DOMAIN}|g" /etc/nginx/sites-enabled/pteronova.conf
+        curl -sL "$CONFIG_BASE_URL/pterodactyl-nginx-ssl.conf" -o /etc/nginx/sites-enabled/$NGINX_CONF_NAME
+        sed -i "s|<domain>|${PANEL_DOMAIN}|g" /etc/nginx/sites-enabled/$NGINX_CONF_NAME
         systemctl reload nginx
-        log "Requesting Let's Encrypt certificate for $PANEL_DOMAIN ..."
+        log "Getting Let's Encrypt SSL for $PANEL_DOMAIN ..."
         certbot --nginx --redirect --agree-tos --email "$ADMIN_EMAIL" -d "$PANEL_DOMAIN" --non-interactive || log_error "Let's Encrypt certificate failed, continuing without SSL!"
     else
-        curl -sL "$CONFIG_BASE/www-pterodactyl.conf" -o /etc/nginx/sites-enabled/pteronova.conf
-        sed -i "s|<domain>|${PANEL_DOMAIN}|g" /etc/nginx/sites-enabled/pteronova.conf
+        curl -sL "$CONFIG_BASE_URL/pterodactyl-nginx.conf" -o /etc/nginx/sites-enabled/$NGINX_CONF_NAME
+        sed -i "s|<domain>|${PANEL_DOMAIN}|g" /etc/nginx/sites-enabled/$NGINX_CONF_NAME
         systemctl reload nginx
     fi
-    log "NGINX configuration complete."
+    log "NGINX setup complete."
 }
 
-######################################
-#         WINGS INSTALLATION         #
-######################################
+##############################
+#       WINGS INSTALL         #
+##############################
 install_wings() {
     if [ "${DEPLOY_WINGS,,}" != "true" ]; then
-        log "Wings deployment skipped."
+        log "Wings install not requested."
         return
     fi
-    log "Installing Wings node..."
+    log "Installing Wings node agent..."
     systemctl enable --now docker
     mkdir -p /etc/pterodactyl
     ARCH_TYPE="$(uname -m | grep -q '64' && echo amd64 || echo arm64)"
     curl -Ls "https://github.com/pterodactyl/wings/releases/latest/download/wings_linux_${ARCH_TYPE}" -o /usr/local/bin/wings
     chmod +x /usr/local/bin/wings
-    curl -sL "$CONFIG_BASE/wings.service" -o /etc/systemd/system/wings.service
+    curl -sL "$CONFIG_BASE_URL/wings.service" -o /etc/systemd/system/wings.service
     systemctl daemon-reload
     systemctl enable --now wings
-    log "Wings node installed and started."
+    log "Wings installed and started."
 }
 
-######################################
-#         PRINT FINAL INFO           #
-######################################
+##############################
+#        FINAL INFO           #
+##############################
 print_summary() {
     echo ""
     echo "============================================================================"
-    echo "      PteroNova: Pterodactyl Panel & Wings Deployment - Installation Complete"
+    echo "           PteroNova - Pterodactyl Panel & Wings Installed                  "
     echo "============================================================================"
-    echo "Panel URL       : ${PANEL_URL}"
-    echo "Admin Username  : ${ADMIN_USER}"
-    echo "Admin Password  : (hidden)"
-    echo "MariaDB Database: ${MYSQL_DATABASE}"
-    echo "MariaDB User    : ${MYSQL_USER}"
-    echo "MariaDB Pass    : ${MYSQL_RANDOM_PASS}"
-    echo "Wings Installed : ${DEPLOY_WINGS}"
-    echo "Log File        : $LOG_FILE"
+    echo "Panel URL        : ${PANEL_URL}"
+    echo "Admin Username   : ${ADMIN_USER}"
+    echo "Admin Password   : (hidden)"
+    echo "MariaDB Database : ${DB_NAME}"
+    echo "MariaDB User     : ${DB_USER}"
+    echo "MariaDB Pass     : ${DB_PASS}"
+    echo "Wings Installed  : ${DEPLOY_WINGS}"
+    echo "Log File         : $LOG_FILE"
     echo "============================================================================"
     echo ""
-    echo "Tip: Copy your DB credentials and keep them safe!"
-    echo "You may now access your Pterodactyl panel and start using your node(s)."
+    echo "Access your panel at the URL above."
     echo ""
 }
 
-######################################
-#               MAIN                 #
-######################################
+##############################
+#           MAIN             #
+##############################
 main() {
     parse_args "$@"
-    verify_environment
+    verify_env
     install_packages
     setup_database
     deploy_panel
