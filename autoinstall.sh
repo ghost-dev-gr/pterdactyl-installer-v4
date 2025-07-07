@@ -91,17 +91,22 @@ install_packages() {
     log "Updating system packages..."
     apt-get update -qq
 
-    log "Installing dependencies (software-properties-common, curl, etc)..."
-    apt-get install -yqq software-properties-common curl lsb-release ca-certificates apt-transport-https gnupg2 > /dev/null
+    log "Installing base dependencies (software-properties-common, curl, etc)..."
+    apt-get install -yqq software-properties-common lsb-release ca-certificates apt-transport-https gnupg2 curl > /dev/null
 
-    log "Adding PHP 8.3 repository (ppa:ondrej/php)..."
-    add-apt-repository -y ppa:ondrej/php > /dev/null
-    apt-get update -qq
+    log "Ensuring PHP 8.3 repository (ppa:ondrej/php) is present..."
+    # Only add PPA if it's not already present
+    if ! grep -q "ondrej/php" /etc/apt/sources.list /etc/apt/sources.list.d/* 2>/dev/null; then
+        add-apt-repository -y ppa:ondrej/php
+        apt-get update -qq
+    else
+        log "PHP PPA already present, skipping add-apt-repository."
+    fi
 
     log "Installing all main dependencies (nginx, MariaDB, PHP 8.3, Redis, Docker, etc)..."
     apt-get install -yqq \
         nginx mariadb-server redis-server tar unzip git wget \
-        php8.3 php8.3-{cli,gd,mysql,pdo,mbstring,tokenizer,bcmath,xml,fpm,curl,zip} \
+        php8.3 php8.3-cli php8.3-fpm php8.3-mysql php8.3-xml php8.3-curl php8.3-zip php8.3-mbstring php8.3-bcmath php8.3-gd php8.3-tokenizer \
         certbot python3-certbot-nginx docker.io > /dev/null
 
     log "Installing Composer (PHP dependency manager)..."
