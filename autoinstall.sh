@@ -90,12 +90,19 @@ install_packages() {
     export DEBIAN_FRONTEND=noninteractive
     log "Updating system packages..."
     apt-get update -qq
-    log "Installing dependencies (nginx, MariaDB, PHP, Redis, etc)..."
+
+    log "Installing dependencies (software-properties-common, curl, etc)..."
+    apt-get install -yqq software-properties-common curl lsb-release ca-certificates apt-transport-https gnupg2 > /dev/null
+
+    log "Adding PHP 8.3 repository (ppa:ondrej/php)..."
+    add-apt-repository -y ppa:ondrej/php > /dev/null
+    apt-get update -qq
+
+    log "Installing all main dependencies (nginx, MariaDB, PHP 8.3, Redis, Docker, etc)..."
     apt-get install -yqq \
-        nginx mariadb-server redis-server tar unzip git curl wget \
+        nginx mariadb-server redis-server tar unzip git wget \
         php8.3 php8.3-{cli,gd,mysql,pdo,mbstring,tokenizer,bcmath,xml,fpm,curl,zip} \
-        certbot python3-certbot-nginx docker.io \
-        > /dev/null
+        certbot python3-certbot-nginx docker.io > /dev/null
 
     log "Installing Composer (PHP dependency manager)..."
     if ! command -v composer >/dev/null 2>&1; then
@@ -140,7 +147,11 @@ deploy_panel() {
     log "Generating panel encryption key..."
     php artisan key:generate --force
 
-    PANEL_URL="http${USE_SSL,,} == true && echo 's' || echo ''}://${PANEL_DOMAIN}"
+    if [ "${USE_SSL,,}" = "true" ]; then
+        PANEL_URL="https://${PANEL_DOMAIN}"
+    else
+        PANEL_URL="http://${PANEL_DOMAIN}"
+    fi
 
     log "Setting up Pterodactyl environment..."
     php artisan p:environment:setup \
