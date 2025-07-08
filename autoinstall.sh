@@ -176,36 +176,38 @@ panel_install(){
 
     apt-get update
 
-    apt-get install -y software-properties-common curl apt-transport-https ca-certificates language-pack-en-base gnupg lsb-release &&
-    export LC_ALL=en_US.UTF-8 &&
-    export LANG=en_US.UTF-8 
+    apt-get install -y software-properties-common curl apt-transport-https language-pack-en-base ca-certificates gnupg lsb-release
+    export LC_ALL=en_US.UTF-8
+    export LANG=en_US.UTF-8
 
     add-apt-repository universe -y
-    # Add PHP PPA, always use LC_ALL for safe UTF-8
-    add-apt-repository -y ppa:ondrej/php 
+    add-apt-repository -y ppa:ondrej/php
     add-apt-repository -y ppa:ondrej/nginx
 
-  
+    # ------ FIX: Add Redis repo before update/install ------
+    curl -fsSL https://repo.redis.io/redis.asc | sudo gpg --dearmor -o /usr/share/keyrings/redis-archive-keyring.gpg
+    echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://repo.redis.io/apt/ubuntu $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/redis.list
+
     # Add MariaDB repo
     curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
 
+    # ------ Now update to see all new packages ------
     apt-get update
+
+    # ------ Now install all needed packages ------
     apt-get install -y mariadb-server tar unzip git redis-server certbot nginx
 
-    curl -fsSL https://repo.redis.io/redis.asc | sudo gpg --dearmor -o /usr/share/keyrings/redis-archive-keyring.gpg
-    echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://repo.redis.io/apt/ubuntu $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/redis.list
-    
     # Fix utf8mb4 collation (workaround for 22.04)
     sed -i 's/character-set-collations = utf8mb4=uca1400_ai_ci/character-set-collations = utf8mb4=utf8mb4_general_ci/' /etc/mysql/mariadb.conf.d/50-server.cnf || true
     systemctl restart mariadb
 
     # PHP 8.2 for Ubuntu 22.04 (Pterodactyl supports up to 8.2 as of July 2024)
-    apt-get install -y php8.3 php8.3-{cli,gd,mysql,pdo,mbstring,tokenizer,bcmath,xml,fpm,curl,zip}
+    apt-get install -y php8.2 php8.2-{cli,gd,mysql,pdo,mbstring,tokenizer,bcmath,xml,fpm,curl,zip}
 
-    update-alternatives --set php /usr/bin/php8.3
+    update-alternatives --set php /usr/bin/php8.2
     curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
-    # Node v14 for panel build
+    # Node v14 for panel build (node 14.x is what's officially supported for many panels)
     curl -sL https://deb.nodesource.com/setup_14.x | sudo -E bash -
     apt-get install -y nodejs
 
@@ -224,6 +226,7 @@ panel_install(){
 
     panel_conf
 }
+
 
 # Arguments
 PANELFQDN="$1"
