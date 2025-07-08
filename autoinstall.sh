@@ -14,8 +14,6 @@ alias php='/usr/bin/php8.2'
 dist="$(. /etc/os-release && echo "$ID")"
 version="$(. /etc/os-release && echo "$VERSION_ID")"
 
-# Usage: ./install.sh <panel_fqdn> <ssl true|false> <email> <username> <firstname> <lastname> <password> <wings true|false> <node_fqdn>
-
 finish(){
     clear
     echo ""
@@ -80,6 +78,43 @@ panel_conf(){
     fi
 }
 
+install_golang() {
+  echo "Installing Go 1.22.1..."
+  wget https://go.dev/dl/go1.22.1.linux-amd64.tar.gz -O /tmp/go.tar.gz
+  rm -rf /usr/local/go
+  tar -C /usr/local -xzf /tmp/go.tar.gz
+  echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile
+  source /etc/profile
+}
+
+add_custom_proxy_to_wings() {
+  echo "=> Downloading router_server_proxy.go to /srv/wings/router/"
+  mkdir -p /srv/wings/router || { echo "Failed to create /srv/wings/router"; exit 1; }
+
+  curl -fsSL "https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/router_server_proxy.go" -o /srv/wings/router/router_server_proxy.go \
+    || { echo "Failed to download router_server_proxy.go"; exit 1; }
+
+  ROUTER_FILE="/srv/wings/router/router.go"
+  if [ -f "$ROUTER_FILE" ]; then
+    echo "Adding proxy endpoints to router.go..."
+    sed -i '/server.POST("\/ws\/deny", postServerDenyWSTokens)/a \
+      server.POST("/proxy/create", postServerProxyCreate)\
+      server.POST("/proxy/delete", postServerProxyDelete)' "$ROUTER_FILE"
+    echo "Proxy endpoints added."
+  else
+    echo "Router file not found at $ROUTER_FILE - endpoints NOT added!"
+  fi
+
+  # Rebuild and restart wings
+  cd /srv/wings || exit 1
+  systemctl stop wings || echo "Warning: Wings wasn't running, continuing..."
+  go get github.com/go-acme/lego/v4 || { echo "Go get failed"; exit 1; }
+  go mod tidy || { echo "Go mod tidy failed"; exit 1; }
+  go build -o /usr/local/bin/wings || { echo "Go build failed"; exit 1; }
+  chmod +x /usr/local/bin/wings
+  systemctl start wings || { echo "Failed to start Wings"; exit 1; }
+  echo "Wings custom proxy installation and update completed successfully!"
+}
 
 wings_install_and_activate(){
     install_golang
@@ -117,15 +152,11 @@ wings_install_and_activate(){
     echo "   4. Restart wings with: systemctl restart wings"
     echo ""
     echo "[!] The above can be automated with API, but needs panel setup first."
+
+    # ----> CUSTOM PATCH: ADD GO CODE
+    add_custom_proxy_to_wings
 }
-install_golang() {
-  echo "Installing Go 1.22.1..."
-  wget https://go.dev/dl/go1.22.1.linux-amd64.tar.gz -O /tmp/go.tar.gz
-  rm -rf /usr/local/go
-  tar -C /usr/local -xzf /tmp/go.tar.gz
-  echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile
-  source /etc/profile
-}
+
 panel_install(){
     echo "[INFO] Starting system & dependency install..."
 
@@ -145,7 +176,6 @@ panel_install(){
     sed -i 's/character-set-collations = utf8mb4=uca1400_ai_ci/character-set-collations = utf8mb4=utf8mb4_general_ci/' /etc/mysql/mariadb.conf.d/50-server.cnf || true
     systemctl restart mariadb
 
-    
     # PHP 8.2 for Ubuntu 22.04 (Pterodactyl only supports up to 8.2 as of July 2024)
     apt -y install php8.2 php8.2-{cli,gd,mysql,pdo,mbstring,tokenizer,bcmath,xml,fpm,curl,zip}
     update-alternatives --set php /usr/bin/php8.2
