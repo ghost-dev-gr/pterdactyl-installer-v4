@@ -176,17 +176,12 @@ panel_install(){
 
     apt-get update
 
-    apt-get install -y software-properties-common curl apt-transport-https language-pack-en-base ca-certificates gnupg lsb-release
-    export LC_ALL=en_US.UTF-8
-    export LANG=en_US.UTF-8
+    apt-get install -y software-properties-common curl apt-transport-https language-pack-en-base ca-certificates gnupg lsb-release 
 
     add-apt-repository universe -y
     add-apt-repository -y ppa:ondrej/php
     add-apt-repository -y ppa:ondrej/nginx
 
-    # ------ FIX: Add Redis repo before update/install ------
-    curl -fsSL https://repo.redis.io/redis.asc | sudo gpg --dearmor -o /usr/share/keyrings/redis-archive-keyring.gpg
-    echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://repo.redis.io/apt/ubuntu $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/redis.list
 
     # Add MariaDB repo
     curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
