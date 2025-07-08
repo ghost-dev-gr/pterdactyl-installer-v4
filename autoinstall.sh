@@ -167,7 +167,7 @@ panel_install(){
 
     apt-get update
 
-    apt-get install -y software-properties-common curl apt-transport-https language-pack-en-base ca-certificates gnupg lsb-release
+    apt-get install -y software-properties-common curl apt-transport-https language-pack-en-base ca-certificates gnupg lsb-release gpg
 
     export LC_ALL=en_US.UTF-8
     export LANG=en_US.UTF-8
@@ -177,6 +177,7 @@ panel_install(){
     echo "passed ppa"
     # Add MariaDB repo
     curl -fsSL https://packages.redis.io/gpg | sudo gpg --dearmor --batch --yes -o /usr/share/keyrings/redis-archive-keyring.gpg
+    sudo chmod 644 /usr/share/keyrings/redis-archive-keyring.gpg
     echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://packages.redis.io/deb $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/redis.list
     echo 'passed deb signed'
     curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
