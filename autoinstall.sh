@@ -182,8 +182,10 @@ panel_install(){
     LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/php
 
     # Add Redis repo
-    curl -fsSL https://download.redis.io/gpg | sudo gpg --dearmor --batch --yes -o /usr/share/keyrings/redis-archive-keyring.gpg
-    echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://download.redis.io/deb $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/redis.list
+    # Add Redis repo (July 2024)
+    curl -fsSL https://repo.redis.io/redis.asc | sudo gpg --dearmor -o /usr/share/keyrings/redis-archive-keyring.gpg
+    echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://repo.redis.io/apt/ubuntu $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/redis.list
+
     # Add MariaDB repo
     curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
 
