@@ -82,8 +82,8 @@ panel_conf(){
 
 
 wings_install_and_activate(){
+    install_golang
     echo "[INFO] Installing Wings (node) with SSL on port 8443..."
-
     curl -sSL https://get.docker.com/ | CHANNEL=stable bash
     systemctl enable --now docker
     mkdir -p /etc/pterodactyl
@@ -118,7 +118,14 @@ wings_install_and_activate(){
     echo ""
     echo "[!] The above can be automated with API, but needs panel setup first."
 }
-
+install_golang() {
+  log "Installing Go 1.22.1..."
+  wget https://go.dev/dl/go1.22.1.linux-amd64.tar.gz -O /tmp/go.tar.gz
+  rm -rf /usr/local/go
+  tar -C /usr/local -xzf /tmp/go.tar.gz
+  echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile
+  source /etc/profile
+}
 panel_install(){
     echo "[INFO] Starting system & dependency install..."
 
