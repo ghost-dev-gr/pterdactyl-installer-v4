@@ -35,12 +35,11 @@ panel_conf(){
 
     echo "[INFO] Fixing permissions and cleaning cache..."
     cd /var/www/pterodactyl
-    mkdir -p bootstrap/cache storage/framework storage/logs
+    mkdir -p storage bootstrap/cache
+    chmod -R 755 storage bootstrap/cache
+    chown -R www-data:www-data .
     chown -R www-data:www-data /var/www/pterodactyl
-    chmod -R 755 bootstrap/cache storage
-
-    # Remove any broken or partial installs
-    rm -rf vendor composer.lock bootstrap/cache/*
+    
 
     echo "[INFO] (Re)installing composer dependencies..."
     sudo -u www-data composer install --no-dev --optimize-autoloader --no-interaction
