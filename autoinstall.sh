@@ -180,7 +180,7 @@ panel_install(){
 
     add-apt-repository universe -y
     # Add PHP PPA, always use LC_ALL for safe UTF-8
-    LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/php ppa:ondrej/nginx
+    LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/php
 
   
     # Add MariaDB repo
