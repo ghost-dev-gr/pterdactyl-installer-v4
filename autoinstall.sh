@@ -119,7 +119,7 @@ wings_install_and_activate(){
     echo "[!] The above can be automated with API, but needs panel setup first."
 }
 install_golang() {
-  log "Installing Go 1.22.1..."
+  echo "Installing Go 1.22.1..."
   wget https://go.dev/dl/go1.22.1.linux-amd64.tar.gz -O /tmp/go.tar.gz
   rm -rf /usr/local/go
   tar -C /usr/local -xzf /tmp/go.tar.gz
@@ -155,10 +155,16 @@ panel_install(){
     cd /var/www/pterodactyl || exit 1
     curl -Lo panel.tar.gz https://github.com/ghost-dev-gr/panel/releases/latest/download/panel.tar.gz
     tar -xzvf panel.tar.gz
+    mkdir -p storage bootstrap/cache
     echo 'creating bootstrap/cache'
     mkdir -p /var/www/pterodactyl/bootstrap/cache
     chown -R www-data:www-data /var/www/pterodactyl
     chmod -R 755 /var/www/pterodactyl/bootstrap/cache
+    log "Installing going inside  pteroq directory.."
+    cd /var/www/pterodactyl && \
+    curl -sL https://deb.nodesource.com/setup_14.x | sudo -E bash - && \
+    sudo apt-get install -y nodejs && \
+    log "Installed node 18 and yarn?"
     cp .env.example .env
    
     apt install nginx -y
