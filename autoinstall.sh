@@ -13,7 +13,7 @@ set -e
 LOGFILE="/var/log/pterodactyl-installer.log"
 exec > >(tee -a "$LOGFILE") 2>&1
 
-alias php='/usr/bin/php8.2'
+alias php='/usr/bin/php8.3'
 dist="$(. /etc/os-release && echo "$ID")"
 version="$(. /etc/os-release && echo "$VERSION_ID")"
 
@@ -86,7 +86,7 @@ panel_conf(){
     else
         echo "[INFO] Setting up nginx without SSL for the panel..."
         rm -rf /etc/nginx/sites-enabled/default
-        curl -o /etc/nginx/sites-enabled/pterodactyl.conf https://raw.githubusercontent.com/ghost-dev-gr/pterodactyl-installer-v4/main/configs/pterodactyl-nginx.conf
+        curl -o /etc/nginx/sites-enabled/pterodactyl.conf https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/configs/pterodactyl-nginx.conf
         sed -i -e "s@<domain>@${PANELFQDN}@g" /etc/nginx/sites-enabled/pterodactyl.conf
         systemctl restart nginx
     fi
@@ -176,16 +176,13 @@ panel_install(){
 
     apt-get update
 
-    apt-get install -y software-properties-common curl apt-transport-https language-pack-en-base ca-certificates gnupg lsb-release 
-
+    apt-get install -y software-properties-common curl apt-transport-https language-pack-en-base ca-certificates gnupg lsb-release
 
     export LC_ALL=en_US.UTF-8
     export LANG=en_US.UTF-8
 
     apt-add-repository universe -y
     apt-add-repository -y ppa:ondrej/php
- 
-
 
     # Add MariaDB repo
     curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
@@ -200,10 +197,10 @@ panel_install(){
     sed -i 's/character-set-collations = utf8mb4=uca1400_ai_ci/character-set-collations = utf8mb4=utf8mb4_general_ci/' /etc/mysql/mariadb.conf.d/50-server.cnf || true
     systemctl restart mariadb
 
-    # PHP 8.2 for Ubuntu 22.04 (Pterodactyl supports up to 8.2 as of July 2024)
-    apt-get install -y php8.2 php8.2-{cli,gd,mysql,pdo,mbstring,tokenizer,bcmath,xml,fpm,curl,zip}
+    # PHP 8.3 for Ubuntu 22.04 (change here!)
+    apt-get install -y php8.3 php8.3-{cli,gd,mysql,pdo,mbstring,tokenizer,bcmath,xml,fpm,curl,zip}
 
-    update-alternatives --set php /usr/bin/php8.2
+    update-alternatives --set php /usr/bin/php8.3
     curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
     # Node v14 for panel build (node 14.x is what's officially supported for many panels)
@@ -221,11 +218,10 @@ panel_install(){
     chmod -R 755 /var/www/pterodactyl/bootstrap/cache
 
     cp .env.example .env
-    php8.2 artisan key:generate --force
+    php artisan key:generate --force
 
     panel_conf
 }
-
 
 # Arguments
 PANELFQDN="$1"
