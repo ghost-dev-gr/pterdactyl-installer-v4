@@ -178,8 +178,12 @@ panel_install(){
 
     apt-get install -y software-properties-common curl apt-transport-https language-pack-en-base ca-certificates gnupg lsb-release 
 
-    add-apt-repository universe -y
-    add-apt-repository -y ppa:ondrej/php
+
+    export LC_ALL=en_US.UTF-8
+    export LANG=en_US.UTF-8
+
+    apt-add-repository universe -y
+    apt-add-repository -y ppa:ondrej/php
  
 
 
