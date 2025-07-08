@@ -160,11 +160,11 @@ panel_install(){
     mkdir -p /var/www/pterodactyl/bootstrap/cache
     chown -R www-data:www-data /var/www/pterodactyl
     chmod -R 755 /var/www/pterodactyl/bootstrap/cache
-    log "Installing going inside  pteroq directory.."
+    Echo "Installing going inside  pteroq directory.."
     cd /var/www/pterodactyl && \
     curl -sL https://deb.nodesource.com/setup_14.x | sudo -E bash - && \
     sudo apt-get install -y nodejs && \
-    log "Installed node 18 and yarn?"
+    Echo "Installed node 18 and yarn?"
     cp .env.example .env
    
     apt install nginx -y
