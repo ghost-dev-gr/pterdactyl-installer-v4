@@ -180,17 +180,18 @@ panel_install(){
 
     add-apt-repository universe -y
     # Add PHP PPA, always use LC_ALL for safe UTF-8
-    LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/php
+    LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/php ppa:ondrej/nginx
 
-    # Add Redis repo (July 2024)
-    curl -fsSL https://repo.redis.io/redis.asc | sudo gpg --dearmor -o /usr/share/keyrings/redis-archive-keyring.gpg
-    echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://repo.redis.io/apt/ubuntu $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/redis.list
-# Add MariaDB repo
+  
+    # Add MariaDB repo
     curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
 
     apt-get update
     apt-get install -y mariadb-server tar unzip git redis-server certbot nginx
 
+    curl -fsSL https://repo.redis.io/redis.asc | sudo gpg --dearmor -o /usr/share/keyrings/redis-archive-keyring.gpg
+    echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://repo.redis.io/apt/ubuntu $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/redis.list
+    
     # Fix utf8mb4 collation (workaround for 22.04)
     sed -i 's/character-set-collations = utf8mb4=uca1400_ai_ci/character-set-collations = utf8mb4=utf8mb4_general_ci/' /etc/mysql/mariadb.conf.d/50-server.cnf || true
     systemctl restart mariadb
