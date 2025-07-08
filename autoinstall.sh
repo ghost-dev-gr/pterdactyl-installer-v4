@@ -176,11 +176,12 @@ panel_install(){
     apt-add-repository -y ppa:ondrej/php
     echo "passed ppa"
     # Add MariaDB repo
-    curl -fsSL https://packages.redis.io/gpg | sudo gpg --dearmor --batch --yes -o /usr/share/keyrings/redis-archive-keyring.gpg
+    curl -fsSL https://packages.redis.io/gpg | sudo gpg --dearmor-o /usr/share/ keyrings/redis-archive-keyring.gpg
     sudo chmod 644 /usr/share/keyrings/redis-archive-keyring.gpg
     echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://packages.redis.io/deb $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/redis.list
     echo 'passed deb signed'
-    curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
+    curl -sSL https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
+
     echo 'passed mariadb'
     # ------ Now update to see all new packages ------
     apt-get update
