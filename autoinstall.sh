@@ -35,14 +35,26 @@ panel_conf(){
 
     echo "[INFO] Fixing permissions and cleaning cache..."
     cd /var/www/pterodactyl
-    mkdir -p storage bootstrap/cache
-    chmod -R 755 storage bootstrap/cache
+    mkdir -p storage bootstrap/cache vendor /var/www/.cache/composer/vcs
+    chown -R www-data:www-data /var/www/pterodactyl /var/www/.cache
+    chmod -R 755 storage bootstrap/cache vendor /var/www/.cache/composer
     chown -R www-data:www-data .
-    chown -R www-data:www-data /var/www/pterodactyl
-    
+   
 
+# Remove any leftover composer.lock or vendor (sometimes fixes edge issues)
+rm -rf composer.lock vendor/*
     echo "[INFO] (Re)installing composer dependencies..."
-    sudo -u www-data composer install --no-dev --optimize-autoloader --no-interaction
+    sudo -u www-data -E composer install --no-dev --optimize-autoloader --no-interaction
+
+    if [ $? -ne 0 ]; then
+        echo "[ERROR] Composer install failed. Dumping permissions:"
+        ls -ld /var/www/pterodactyl
+        ls -ld /var/www/pterodactyl/vendor
+        ls -ld /var/www/.cache
+        ls -ld /var/www/.cache/composer
+        id www-data
+        exit 1
+    fi
 
     echo "[INFO] Generating app key and config cache..."
     sudo -u www-data php artisan key:generate --force
