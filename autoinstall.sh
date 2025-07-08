@@ -176,15 +176,18 @@ panel_install(){
 
     apt-get update
 
-    apt-get install -y software-properties-common curl apt-transport-https ca-certificates gnupg lsb-release
+    apt-get install -y software-properties-common curl apt-transport-https ca-certificates gnupg 
 
-    # Add PHP PPA, always use LC_ALL for safe UTF-8
+
+    # Add Ubuntu universe repo
+    add-apt-repository universe -y
+
+    # Add PPA for PHP (we need 8.3)
     LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/php
 
     # Add Redis repo
-    # Add Redis repo (July 2024)
-    curl -fsSL https://repo.redis.io/redis.asc | sudo gpg --dearmor -o /usr/share/keyrings/redis-archive-keyring.gpg
-    echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://repo.redis.io/apt/ubuntu $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/redis.list
+    curl -fsSL https://packages.redis.io/gpg | sudo gpg --dearmor --batch --yes -o /usr/share/keyrings/redis-archive-keyring.gpg
+    echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://packages.redis.io/deb $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/redis.list
 
     # Add MariaDB repo
     curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
