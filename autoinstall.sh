@@ -176,11 +176,14 @@ panel_install(){
 
     apt-get update
 
-    apt-get install -y software-properties-common curl apt-transport-https ca-certificates gnupg lsb-release
+    apt-get install -y software-properties-common curl apt-transport-https ca-certificates language-pack-en-base gnupg lsb-release &&
+    export LC_ALL=en_US.UTF-8 &&
+    export LANG=en_US.UTF-8 
 
     add-apt-repository universe -y
     # Add PHP PPA, always use LC_ALL for safe UTF-8
-    LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/php
+    add-apt-repository -y ppa:ondrej/php 
+    add-apt-repository -y ppa:ondrej/nginx
 
   
     # Add MariaDB repo
