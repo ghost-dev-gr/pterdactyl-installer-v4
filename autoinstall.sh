@@ -183,7 +183,7 @@ panel_install(){
 
     apt-add-repository universe -y
     apt-add-repository -y ppa:ondrej/php
-
+    echo "passed ppa"
     # Add MariaDB repo
     curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
 
