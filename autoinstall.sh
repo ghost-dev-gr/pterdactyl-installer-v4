@@ -140,19 +140,10 @@ wings_install_and_activate(){
 
     curl -L -o /usr/local/bin/wings "https://github.com/pterodactyl/wings/releases/latest/download/wings_linux_$( [[ "$(uname -m)" == "x86_64" ]] && echo "amd64" || echo "arm64")"
     chmod u+x /usr/local/bin/wings
-    curl -o /etc/systemd/system/wings.service https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/configs/wings.service
+    curl -o /etc/systemd/system/wings.service https://raw.githubusercontent.com/ghost-dev-gr/pterodactyl-installer-v4/main/configs/wings.service
 
     echo "[INFO] Requesting SSL certificate for node domain $NODEFQDN..."
     certbot certonly --standalone --preferred-challenges http -d "$NODEFQDN" --agree-tos --no-eff-email -m "$EMAIL"
-
-    echo "[INFO] Downloading node config and applying settings..."
-    curl -o /etc/pterodactyl/config.yml https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/configs/config.example.yml
-    sed -i "s@<panel_domain>@${PANELFQDN}@g" /etc/pterodactyl/config.yml
-    sed -i "s@<node_domain>@${NODEFQDN}@g" /etc/pterodactyl/config.yml
-    sed -i "s@127.0.0.1:8080@0.0.0.0:8443@g" /etc/pterodactyl/config.yml
-    sed -i "s@ssl: false@ssl: true@g" /etc/pterodactyl/config.yml
-    sed -i "s@/etc/letsencrypt/live/<node_domain>/fullchain.pem@/etc/letsencrypt/live/${NODEFQDN}/fullchain.pem@g" /etc/pterodactyl/config.yml
-    sed -i "s@/etc/letsencrypt/live/<node_domain>/privkey.pem@/etc/letsencrypt/live/${NODEFQDN}/privkey.pem@g" /etc/pterodactyl/config.yml
 
     systemctl daemon-reload
     systemctl enable --now wings
@@ -162,7 +153,7 @@ wings_install_and_activate(){
     echo "[!] To finish node registration:"
     echo "   1. Log in to your panel at https://$PANELFQDN"
     echo "   2. Add a node with FQDN $NODEFQDN, scheme https, port 8443"
-    echo "   3. Download the node config and place it at /etc/pterodactyl/config.yml"
+    echo "   3. Download the node config from the panel and place it at /etc/pterodactyl/config.yml"
     echo "   4. Restart wings with: systemctl restart wings"
     echo ""
     echo "[!] The above can be automated with API, but needs panel setup first."
@@ -186,13 +177,13 @@ panel_install(){
     echo "passed ppa"
     # Add MariaDB repo
     curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
-
+    echo 'passed mariadb'
     # ------ Now update to see all new packages ------
     apt-get update
 
     # ------ Now install all needed packages ------
     apt-get install -y mariadb-server tar unzip git redis-server certbot nginx
-
+    echo 'passed marmariadb-server iadb'
     # Fix utf8mb4 collation (workaround for 22.04)
     sed -i 's/character-set-collations = utf8mb4=uca1400_ai_ci/character-set-collations = utf8mb4=utf8mb4_general_ci/' /etc/mysql/mariadb.conf.d/50-server.cnf || true
     systemctl restart mariadb
