@@ -180,7 +180,7 @@ panel_install(){
 
     add-apt-repository universe -y
     add-apt-repository -y ppa:ondrej/php
-    add-apt-repository -y ppa:ondrej/nginx
+ 
 
 
     # Add MariaDB repo
