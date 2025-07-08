@@ -2,14 +2,17 @@
 
 ########################################################################
 #            Pterodactyl Installer, Updater, Remover and More          #
-#            Copyright 2022, Malthe K, <me@malthe.cc>                  # 
+#            Copyright 2022, Malthe K, <me@malthe.cc>                  #
 # https://github.com/guldkage/Pterodactyl-Installer/blob/main/LICENSE  #
 #  This script is not associated with the official Pterodactyl Panel.  #
 #  You may not remove this line                                        #
 ########################################################################
 
+set -e
+
 LOGFILE="/var/log/pterodactyl-installer.log"
 exec > >(tee -a "$LOGFILE") 2>&1
+
 alias php='/usr/bin/php8.2'
 dist="$(. /etc/os-release && echo "$ID")"
 version="$(. /etc/os-release && echo "$VERSION_ID")"
@@ -38,16 +41,16 @@ panel_conf(){
     mkdir -p storage bootstrap/cache vendor /var/www/.cache/composer/vcs
     chown -R www-data:www-data /var/www/pterodactyl /var/www/.cache
     chmod -R 755 storage bootstrap/cache vendor /var/www/.cache/composer
-    chown -R www-data:www-data .
-   
 
-# Remove any leftover composer.lock or vendor (sometimes fixes edge issues)
-rm -rf composer.lock vendor/*
+    # Clean up vendor/composer.lock for fresh Composer install
+    rm -rf composer.lock vendor/*
+
     echo "[INFO] (Re)installing composer dependencies..."
+    sudo -u www-data -E composer clear-cache
     sudo -u www-data -E composer install --no-dev --optimize-autoloader --no-interaction
 
     if [ $? -ne 0 ]; then
-        echo "[ERROR] Composer install failed. Dumping permissions:"
+        echo "[ERROR] Composer install failed. Dumping permissions and cache:"
         ls -ld /var/www/pterodactyl
         ls -ld /var/www/pterodactyl/vendor
         ls -ld /var/www/.cache
@@ -83,7 +86,7 @@ rm -rf composer.lock vendor/*
     else
         echo "[INFO] Setting up nginx without SSL for the panel..."
         rm -rf /etc/nginx/sites-enabled/default
-        curl -o /etc/nginx/sites-enabled/pterodactyl.conf https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/configs/pterodactyl-nginx.conf
+        curl -o /etc/nginx/sites-enabled/pterodactyl.conf https://raw.githubusercontent.com/ghost-dev-gr/pterodactyl-installer-v4/main/configs/pterodactyl-nginx.conf
         sed -i -e "s@<domain>@${PANELFQDN}@g" /etc/nginx/sites-enabled/pterodactyl.conf
         systemctl restart nginx
     fi
@@ -171,44 +174,50 @@ wings_install_and_activate(){
 panel_install(){
     echo "[INFO] Starting system & dependency install..."
 
-    apt update
-    apt install certbot -y
+    apt-get update
 
-    # Ubuntu 22.04 setup only
-    apt -y install software-properties-common curl apt-transport-https ca-certificates gnupg lsb-release
+    apt-get install -y software-properties-common curl apt-transport-https ca-certificates gnupg lsb-release
+
+    # Add PHP PPA, always use LC_ALL for safe UTF-8
+    LC_ALL=C.UTF-8 add-apt-repository -y ppa:ondrej/php
+
+    # Add Redis repo
     curl -fsSL https://packages.redis.io/gpg | sudo gpg --dearmor --batch --yes -o /usr/share/keyrings/redis-archive-keyring.gpg
     echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://packages.redis.io/deb $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/redis.list
-    curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
-    add-apt-repository ppa:ondrej/php -y
-    apt update
-    apt install -y mariadb-server tar unzip git redis-server
 
-    # Fix utf8mb4 collation
+    # Add MariaDB repo
+    curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
+
+    apt-get update
+    apt-get install -y mariadb-server tar unzip git redis-server certbot nginx
+
+    # Fix utf8mb4 collation (workaround for 22.04)
     sed -i 's/character-set-collations = utf8mb4=uca1400_ai_ci/character-set-collations = utf8mb4=utf8mb4_general_ci/' /etc/mysql/mariadb.conf.d/50-server.cnf || true
     systemctl restart mariadb
 
-    # PHP 8.2 for Ubuntu 22.04 (Pterodactyl only supports up to 8.2 as of July 2024)
-    apt -y install php8.2 php8.2-{cli,gd,mysql,pdo,mbstring,tokenizer,bcmath,xml,fpm,curl,zip}
+    # PHP 8.2 for Ubuntu 22.04 (Pterodactyl supports up to 8.2 as of July 2024)
+    apt-get install -y php8.2 php8.2-{cli,gd,mysql,pdo,mbstring,tokenizer,bcmath,xml,fpm,curl,zip}
+
     update-alternatives --set php /usr/bin/php8.2
     curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
+    # Node v14 for panel build
+    curl -sL https://deb.nodesource.com/setup_14.x | sudo -E bash -
+    apt-get install -y nodejs
+
     mkdir -p /var/www/pterodactyl
     cd /var/www/pterodactyl || exit 1
+
     curl -Lo panel.tar.gz https://github.com/ghost-dev-gr/panel/releases/latest/download/panel.tar.gz
     tar -xzvf panel.tar.gz
-    mkdir -p storage bootstrap/cache
-    echo 'creating bootstrap/cache'
-    mkdir -p /var/www/pterodactyl/bootstrap/cache
-    chown -R www-data:www-data /var/www/pterodactyl
+    rm panel.tar.gz
+    mkdir -p storage bootstrap/cache vendor /var/www/.cache/composer/vcs
+    chown -R www-data:www-data /var/www/pterodactyl /var/www/.cache
     chmod -R 755 /var/www/pterodactyl/bootstrap/cache
-    echo "Installing going inside  pteroq directory.."
-    cd /var/www/pterodactyl && \
-    curl -sL https://deb.nodesource.com/setup_14.x | sudo -E bash - && \
-    sudo apt-get install -y nodejs && \
-    echo "Installed node 18 and yarn?"
+
     cp .env.example .env
     php8.2 artisan key:generate --force
-    apt install nginx -y
+
     panel_conf
 }
 
