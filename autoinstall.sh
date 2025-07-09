@@ -25,6 +25,69 @@ finish(){
     echo ""
 }
 
+# -- Create location if needed --
+create_location_in_db() {
+    LOC_NAME="lc.eu.made-by-orthodox-hosting"
+    echo "[INFO] Ensuring location exists: $LOC_NAME"
+    DBPASSWORD=$(grep DB_PASSWORD /var/www/pterodactyl/.env | cut -d= -f2-)
+    SQL_EXISTS=$(echo "SELECT id FROM locations WHERE short = '$LOC_NAME';" | mariadb -u pterodactyl -p"$DBPASSWORD" panel -N)
+    if [ -z "$SQL_EXISTS" ]; then
+        echo "[INFO] Creating location $LOC_NAME in DB."
+        echo "INSERT INTO locations (short, long, created_at, updated_at) VALUES ('$LOC_NAME', 'Script Created Location', NOW(), NOW());" | mariadb -u pterodactyl -p"$DBPASSWORD" panel
+    else
+        echo "[INFO] Location $LOC_NAME already exists (id=$SQL_EXISTS)"
+    fi
+}
+
+# -- Create node after location, using resource logic --
+create_node_in_db() {
+    LOC_NAME="lc.eu.made-by-orthodox-hosting"
+    NODE_NAME=$(echo "$NODEFQDN" | cut -d. -f1)
+    DBPASSWORD=$(grep DB_PASSWORD /var/www/pterodactyl/.env | cut -d= -f2-)
+    LOC_ID=$(echo "SELECT id FROM locations WHERE short = '$LOC_NAME';" | mariadb -u pterodactyl -p"$DBPASSWORD" panel -N)
+    echo "[INFO] Using location_id: $LOC_ID"
+
+    TOTAL_RAM=$(free -m | awk '/^Mem:/{print $2}')
+    SAFE_RAM=$((TOTAL_RAM - 512))
+    [ "$SAFE_RAM" -lt 512 ] && SAFE_RAM=512
+
+    TOTAL_DISK=$(df -m / | awk 'NR==2{print $2}')
+    SAFE_DISK=$((TOTAL_DISK - 5120))
+    [ "$SAFE_DISK" -lt 10240 ] && SAFE_DISK=10240
+
+    # Avoid duplicate nodes!
+    EXISTING=$(echo "SELECT id FROM nodes WHERE fqdn = '$NODEFQDN';" | mariadb -u pterodactyl -p"$DBPASSWORD" panel -N)
+    if [ -n "$EXISTING" ]; then
+        echo "[INFO] Node $NODE_NAME already exists in DB (id=$EXISTING), skipping creation."
+        return
+    fi
+
+    echo "[INFO] Creating node $NODE_NAME (fqdn: $NODEFQDN, RAM: $SAFE_RAM MB, Disk: $SAFE_DISK MB)"
+    cat <<EOF | mariadb -u pterodactyl -p"$DBPASSWORD" panel
+INSERT INTO nodes (name, description, location_id, fqdn, scheme, memory, memory_overallocate, disk, disk_overallocate, daemon_listen, daemon_sftp, daemon_base, public, behind_proxy, maintenance_mode, upload_size, created_at, updated_at)
+VALUES (
+    '$NODE_NAME',
+    'Auto-created by script',
+    $LOC_ID,
+    '$NODEFQDN',
+    'https',
+    $SAFE_RAM,
+    0,
+    $SAFE_DISK,
+    0,
+    8443,
+    2022,
+    '/var/lib/pterodactyl',
+    1,
+    0,
+    0,
+    100,
+    NOW(),
+    NOW()
+);
+EOF
+}
+
 panel_conf(){
     echo "[INFO] Starting panel configuration..."
 
@@ -107,54 +170,7 @@ panel_conf(){
     fi
 }
 
-# -----> NODE SQL CREATION FUNCTION <-----
-create_node_in_db() {
-    # This function creates a node in the database directly!
-    # It auto-calculates RAM (max - 512MB) and disk (max - 5GB), min 10GB free for system.
 
-    NODE_NAME=$(echo "$NODEFQDN" | cut -d. -f1)
-    echo "[INFO] Creating node $NODE_NAME directly in the panel database."
-
-    # Query max safe RAM & Disk
-    TOTAL_RAM=$(free -m | awk '/^Mem:/{print $2}')
-    SAFE_RAM=$((TOTAL_RAM - 512))
-    if [ "$SAFE_RAM" -lt 512 ]; then SAFE_RAM=512; fi
-
-    DISK_PATH="/"
-    TOTAL_DISK=$(df -m "$DISK_PATH" | awk 'NR==2{print $2}')
-    SAFE_DISK=$((TOTAL_DISK - 5120))
-    if [ "$SAFE_DISK" -lt 10240 ]; then SAFE_DISK=10240; fi
-
-    DBPASSWORD=$(cat /var/www/pterodactyl/.env | grep DB_PASSWORD | cut -d= -f2-)
-    if [ -z "$DBPASSWORD" ]; then
-        echo "[ERROR] Could not find DB password in .env!"; exit 1
-    fi
-
-    cat <<EOF | mariadb -u pterodactyl -p"$DBPASSWORD" panel
-INSERT INTO nodes (name, description, location_id, fqdn, scheme, memory, memory_overallocate, disk, disk_overallocate, daemon_listen, daemon_sftp, daemon_base, public, behind_proxy, maintenance_mode, upload_size, created_at, updated_at)
-VALUES (
-    '$NODE_NAME',
-    'Auto-created by script',
-    1,
-    '$NODEFQDN',
-    'https',
-    $SAFE_RAM,
-    0,
-    $SAFE_DISK,
-    0,
-    8443,
-    2022,
-    '/var/lib/pterodactyl',
-    1,
-    0,
-    0,
-    100,
-    NOW(),
-    NOW()
-);
-EOF
-    echo "[INFO] Node $NODE_NAME created in panel DB (memory=${SAFE_RAM}MB, disk=${SAFE_DISK}MB)."
-}
 
 install_golang() {
   echo "Installing Go 1.22.1..."
@@ -321,6 +337,7 @@ if [ "$dist" = "ubuntu" ] && [ "$version" = "22.04" ]; then
     panel_install
     if [ "$WINGS" == true ]; then
         wings_install_and_activate
+         create_location_in_db
         create_node_in_db
 
         # Health check for wings on 8443
