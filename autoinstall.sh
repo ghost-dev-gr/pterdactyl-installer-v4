@@ -219,6 +219,9 @@ wings_install_and_activate(){
 
     curl -L -o /tmp/wings.tar.gz "https://github.com/ghost-dev-gr/wings/releases/latest/download/wings.tar.gz"
     tar -xzvf /tmp/wings.tar.gz -C /usr/local/bin
+    cd /usr/local/bin 
+    WINGS_FOLDER=$(ls -d wings-* | head -n1)
+    mv "$WINGS_FOLDER" wings
     chmod +x /usr/local/bin/wings
     curl -o /etc/systemd/system/wings.service https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/configs/wings.service
 
