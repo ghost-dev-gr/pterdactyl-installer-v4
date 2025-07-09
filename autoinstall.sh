@@ -214,6 +214,7 @@ panel_install(){
     chown -R www-data:www-data /var/www/pterodactyl /var/www/.cache
     chmod -R 755 /var/www/pterodactyl/bootstrap/cache
 
+    cd /var/www/pterodactyl || exit 1
     cp .env.example .env
     php artisan key:generate --force
 
