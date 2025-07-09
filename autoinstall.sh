@@ -47,6 +47,7 @@ panel_conf(){
 
     echo "[INFO] (Re)installing composer dependencies..."
     sudo -u www-data -E composer clear-cache
+    echo 'running composer install'
     composer install --no-dev --optimize-autoloader --no-interaction
 
     if [ $? -ne 0 ]; then
@@ -222,7 +223,9 @@ panel_install(){
 
    
     cp .env.example .env
+    echo 'start of artisan key generate'
     php artisan key:generate --force
+    echo 'ended panel_install'
 
     panel_conf
 }
