@@ -79,7 +79,7 @@ echo "[INFO] Creating node $NODE_NAME (fqdn: $NODEFQDN, RAM: $SAFE_RAM MB, Disk:
 cat <<EOF | mariadb -u pterodactyl -p"$DBPASSWORD" panel
 INSERT INTO nodes (
     name, description, location_id, fqdn, scheme, memory, memory_overallocate, disk,
-    disk_overallocate, upload_size, daemon_base, public, behind_proxy, maintenance_mode,
+    disk_overallocate, upload_size, daemonBase, public, behind_proxy, maintenance_mode,
     created_at, updated_at
 )
 VALUES (
