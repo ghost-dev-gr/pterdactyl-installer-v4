@@ -63,6 +63,7 @@ panel_conf(){
     if ! command -v yarn >/dev/null 2>&1; then
         npm install -g yarn || { echo "[ERROR] Could not install yarn!"; exit 1; }
     fi
+    chown -R www-data:www-data /var/www
 
     sudo -u www-data yarn install || { echo "[ERROR] yarn install failed!"; exit 1; }
     if sudo -u www-data yarn build:production; then
