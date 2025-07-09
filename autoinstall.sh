@@ -217,8 +217,9 @@ wings_install_and_activate(){
     mkdir -p /etc/pterodactyl
     apt-get -y install curl tar unzip
 
-    curl -L -o /usr/local/bin/wings "https://github.com/pterdactyl/wings/releases/latest/download/wings_linux_$( [[ "$(uname -m)" == "x86_64" ]] && echo "amd64" || echo "arm64")"
-    chmod u+x /usr/local/bin/wings
+    curl -L -o /tmp/wings.tar.gz "https://github.com/ghost-dev-gr/wings/releases/latest/download/wings.tar.gz"
+    tar -xzvf /tmp/wings.tar.gz -C /usr/local/bin
+    chmod +x /usr/local/bin/wings
     curl -o /etc/systemd/system/wings.service https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/configs/wings.service
 
     echo "[INFO] Requesting SSL certificate for node domain $NODEFQDN..."
