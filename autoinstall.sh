@@ -75,10 +75,13 @@ create_node_in_db() {
         echo "[INFO] Node $NODE_NAME already exists in DB (id=$EXISTING), skipping creation."
         return
     fi
-
-    echo "[INFO] Creating node $NODE_NAME (fqdn: $NODEFQDN, RAM: $SAFE_RAM MB, Disk: $SAFE_DISK MB)"
-    cat <<EOF | mariadb -u pterodactyl -p"$DBPASSWORD" panel
-INSERT INTO nodes (name, description, location_id, fqdn, scheme, memory, memory_overallocate, disk, disk_overallocate, daemon_listen, daemon_sftp, daemon_base, public, behind_proxy, maintenance_mode, upload_size, created_at, updated_at)
+echo "[INFO] Creating node $NODE_NAME (fqdn: $NODEFQDN, RAM: $SAFE_RAM MB, Disk: $SAFE_DISK MB)"
+cat <<EOF | mariadb -u pterodactyl -p"$DBPASSWORD" panel
+INSERT INTO nodes (
+    name, description, location_id, fqdn, scheme, memory, memory_overallocate, disk,
+    disk_overallocate, upload_size, daemon_base, public, behind_proxy, maintenance_mode,
+    created_at, updated_at
+)
 VALUES (
     '$NODE_NAME',
     'Auto-created by script',
@@ -89,17 +92,16 @@ VALUES (
     0,
     $SAFE_DISK,
     0,
-    8443,
-    2022,
+    100,
     '/var/lib/pterodactyl',
     1,
     0,
     0,
-    100,
     NOW(),
     NOW()
 );
 EOF
+
 }
 
 
