@@ -25,15 +25,17 @@ finish(){
     echo ""
 }
 
-# -- Create location if needed --
 create_location_in_db() {
     LOC_NAME="lc.eu.made-by-orthodox-hosting"
     echo "[INFO] Ensuring location exists: $LOC_NAME"
     DBPASSWORD=$(grep DB_PASSWORD /var/www/pterodactyl/.env | cut -d= -f2-)
 
-    # Ensure password matches DB, always!
-    sudo mariadb -e "ALTER USER 'pterodactyl'@'127.0.0.1' IDENTIFIED BY '${DBPASSWORD}'; FLUSH PRIVILEGES;"
-    sudo mariadb -e "ALTER USER 'pterodactyl'@'localhost' IDENTIFIED BY '${DBPASSWORD}'; FLUSH PRIVILEGES;"
+    # Only create user if it doesn't exist; does not reset password if present
+    sudo mariadb -e "CREATE USER IF NOT EXISTS 'pterodactyl'@'127.0.0.1' IDENTIFIED BY '${DBPASSWORD}';"
+    sudo mariadb -e "CREATE USER IF NOT EXISTS 'pterodactyl'@'localhost' IDENTIFIED BY '${DBPASSWORD}';"
+    sudo mariadb -e "GRANT ALL PRIVILEGES ON panel.* TO 'pterodactyl'@'127.0.0.1';"
+    sudo mariadb -e "GRANT ALL PRIVILEGES ON panel.* TO 'pterodactyl'@'localhost';"
+    sudo mariadb -e "FLUSH PRIVILEGES;"
 
     SQL_EXISTS=$(echo "SELECT id FROM locations WHERE short = '$LOC_NAME';" | mariadb -u pterodactyl -p"$DBPASSWORD" panel -N)
     if [ -z "$SQL_EXISTS" ]; then
@@ -42,21 +44,19 @@ create_location_in_db() {
     else
         echo "[INFO] Location $LOC_NAME already exists (id=$SQL_EXISTS)"
     fi
-
-    # Optional: Reset again on exit to be extra sure (not really needed)
-    # sudo mariadb -e "ALTER USER 'pterodactyl'@'127.0.0.1' IDENTIFIED BY '${DBPASSWORD}'; FLUSH PRIVILEGES;"
-    # sudo mariadb -e "ALTER USER 'pterodactyl'@'localhost' IDENTIFIED BY '${DBPASSWORD}'; FLUSH PRIVILEGES;"
 }
 
-# -- Create node after location, using resource logic --
 create_node_in_db() {
     LOC_NAME="lc.eu.made-by-orthodox-hosting"
     NODE_NAME=$(echo "$NODEFQDN" | cut -d. -f1)
     DBPASSWORD=$(grep DB_PASSWORD /var/www/pterodactyl/.env | cut -d= -f2-)
 
-    # Ensure password matches DB, always!
-    sudo mariadb -e "ALTER USER 'pterodactyl'@'127.0.0.1' IDENTIFIED BY '${DBPASSWORD}'; FLUSH PRIVILEGES;"
-    sudo mariadb -e "ALTER USER 'pterodactyl'@'localhost' IDENTIFIED BY '${DBPASSWORD}'; FLUSH PRIVILEGES;"
+    # Only create user if it doesn't exist; does not reset password if present
+    sudo mariadb -e "CREATE USER IF NOT EXISTS 'pterodactyl'@'127.0.0.1' IDENTIFIED BY '${DBPASSWORD}';"
+    sudo mariadb -e "CREATE USER IF NOT EXISTS 'pterodactyl'@'localhost' IDENTIFIED BY '${DBPASSWORD}';"
+    sudo mariadb -e "GRANT ALL PRIVILEGES ON panel.* TO 'pterodactyl'@'127.0.0.1';"
+    sudo mariadb -e "GRANT ALL PRIVILEGES ON panel.* TO 'pterodactyl'@'localhost';"
+    sudo mariadb -e "FLUSH PRIVILEGES;"
 
     LOC_ID=$(echo "SELECT id FROM locations WHERE short = '$LOC_NAME';" | mariadb -u pterodactyl -p"$DBPASSWORD" panel -N)
     echo "[INFO] Using location_id: $LOC_ID"
@@ -100,11 +100,8 @@ VALUES (
     NOW()
 );
 EOF
-
-    # Optional: Reset again on exit to be extra sure (not really needed)
-    # sudo mariadb -e "ALTER USER 'pterodactyl'@'127.0.0.1' IDENTIFIED BY '${DBPASSWORD}'; FLUSH PRIVILEGES;"
-    # sudo mariadb -e "ALTER USER 'pterodactyl'@'localhost' IDENTIFIED BY '${DBPASSWORD}'; FLUSH PRIVILEGES;"
 }
+
 
 panel_conf(){
     echo "[INFO] Starting panel configuration..."
