@@ -17,6 +17,25 @@ alias php='/usr/bin/php8.3'
 dist="$(. /etc/os-release && echo "$ID")"
 version="$(. /etc/os-release && echo "$VERSION_ID")"
 
+# Returns value in MB. Leave 20% for system, don't allocate all.
+get_safe_ram_mb() {
+    total_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+    safe_kb=$((total_kb * 80 / 100))
+    echo $((safe_kb / 1024))
+}
+
+# Returns value in MB. Leaves 10GB or 20% (whichever is more).
+get_safe_disk_mb() {
+    total_kb=$(df --block-size=1K / | tail -1 | awk '{print $2}')
+    used_kb=$(df --block-size=1K / | tail -1 | awk '{print $3}')
+    free_kb=$((total_kb - used_kb))
+    # leave 10GB or 20% of disk free
+    leave_kb=$(( (total_kb * 20 / 100) > (10 * 1024 * 1024) ? (total_kb * 20 / 100) : (10 * 1024 * 1024) ))
+    safe_kb=$((free_kb - leave_kb))
+    [ $safe_kb -lt 0 ] && safe_kb=0
+    echo $((safe_kb / 1024))
+}
+
 finish(){
     clear
     echo ""
@@ -42,12 +61,10 @@ panel_conf(){
     chown -R www-data:www-data /var/www/pterodactyl /var/www/.cache
     chmod -R 755 storage bootstrap/cache vendor /var/www/.cache/composer
 
-    # Clean up vendor/composer.lock for fresh Composer install
     rm -rf composer.lock vendor/*
+    sudo -u www-data -E composer clear-cache
 
     echo "[INFO] (Re)installing composer dependencies..."
-    sudo -u www-data -E composer clear-cache
-    echo 'running composer install'
     composer install --no-dev --optimize-autoloader --no-interaction
 
     if [ $? -ne 0 ]; then
@@ -60,14 +77,12 @@ panel_conf(){
         exit 1
     fi
 
-    # -----> FRONTEND BUILD FIX (yarn install & build)
-    echo "[INFO] Installing yarn if missing and building frontend assets..."
+    echo "[INFO] Installing yarn and building frontend assets..."
+    apt-get install -y npm
     if ! command -v yarn >/dev/null 2>&1; then
         npm install -g yarn || { echo "[ERROR] Could not install yarn!"; exit 1; }
     fi
-
     sudo -u www-data yarn install || { echo "[ERROR] yarn install failed!"; exit 1; }
-
     if sudo -u www-data yarn build:production; then
         echo "[INFO] Frontend assets built (production)."
     elif sudo -u www-data yarn build; then
@@ -76,7 +91,6 @@ panel_conf(){
         echo "[ERROR] Frontend build failed. See output above."; exit 1
     fi
 
-    # Check for manifest
     if [ ! -f public/mix-manifest.json ] && [ ! -f public/build/manifest.json ]; then
         echo "[ERROR] Asset manifest not found after build. Panel cannot run!"; exit 1
     fi
@@ -108,12 +122,11 @@ panel_conf(){
     else
         echo "[INFO] Setting up nginx without SSL for the panel..."
         rm -rf /etc/nginx/sites-enabled/default
-        curl -o /etc/nginx/sites-enabled/pterodactyl.conf https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/configs/pterodactyl-nginx.conf
+        curl -o /etc/nginx/sites-enabled/pterodactyl.conf https://raw.githubusercontent.com/ghost-dev-gr/pterodactyl-installer-v4/main/configs/pterodactyl-nginx.conf
         sed -i -e "s@<domain>@${PANELFQDN}@g" /etc/nginx/sites-enabled/pterodactyl.conf
         systemctl restart nginx
     fi
 }
-
 
 install_golang() {
   echo "Installing Go 1.22.1..."
@@ -173,15 +186,7 @@ wings_install_and_activate(){
 
     echo ""
     echo "[!] Wings installed and started at https://$NODEFQDN:8443"
-    echo "[!] To finish node registration:"
-    echo "   1. Log in to your panel at https://$PANELFQDN"
-    echo "   2. Add a node with FQDN $NODEFQDN, scheme https, port 8443"
-    echo "   3. Download the node config from the panel and place it at /etc/pterodactyl/config.yml"
-    echo "   4. Restart wings with: systemctl restart wings"
-    echo ""
-    echo "[!] The above can be automated with API, but needs panel setup first."
-
-    # ----> CUSTOM PATCH: ADD GO CODE
+    # Custom PATCH for Go code
     add_custom_proxy_to_wings
 }
 
@@ -189,7 +194,6 @@ panel_install(){
     echo "[INFO] Starting system & dependency install..."
 
     apt-get update
-
     apt-get install -y software-properties-common curl apt-transport-https language-pack-en-base ca-certificates gnupg lsb-release gpg
 
     export LC_ALL=en_US.UTF-8
@@ -197,33 +201,25 @@ panel_install(){
 
     apt-add-repository universe -y
     apt-add-repository -y ppa:ondrej/php
-    echo "passed ppa"
     # Add MariaDB repo
     sudo mkdir -p /usr/share/keyrings
     curl -fsSL https://packages.redis.io/gpg | sudo gpg --dearmor --batch --yes -o /usr/share/keyrings/redis-archive-keyring.gpg
     sudo chmod 644 /usr/share/keyrings/redis-archive-keyring.gpg
     echo "deb [signed-by=/usr/share/keyrings/redis-archive-keyring.gpg] https://packages.redis.io/deb $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/redis.list
-    echo 'passed deb signed'
     curl -sSL https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
 
-    echo 'passed mariadb'
-    # ------ Now update to see all new packages ------
     apt-get update
+    apt-get install -y mariadb-server tar unzip git redis-server certbot nginx npm jq netcat
 
-    # ------ Now install all needed packages ------
-    apt-get install -y mariadb-server tar unzip git redis-server certbot nginx
-    echo 'passed marmariadb-server iadb'
     # Fix utf8mb4 collation (workaround for 22.04)
     sed -i 's/character-set-collations = utf8mb4=uca1400_ai_ci/character-set-collations = utf8mb4=utf8mb4_general_ci/' /etc/mysql/mariadb.conf.d/50-server.cnf || true
     systemctl restart mariadb
 
-    # PHP 8.3 for Ubuntu 22.04 (change here!)
     apt-get install -y php8.3 php8.3-{cli,gd,mysql,pdo,mbstring,tokenizer,bcmath,xml,fpm,curl,zip}
 
     update-alternatives --set php /usr/bin/php8.3
     curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
-    # Node v14 for panel build (node 14.x is what's officially supported for many panels)
     curl -sL https://deb.nodesource.com/setup_14.x | sudo -E bash -
     apt-get install -y nodejs
 
@@ -243,11 +239,58 @@ panel_install(){
     chown -R www-data:www-data /var/www/pterodactyl /var/www/.cache
     chmod -R 755 /var/www/pterodactyl/bootstrap/cache
 
-   
     cp .env.example .env
     echo 'ended panel_install'
 
     panel_conf
+}
+
+create_node_and_configure() {
+    NODE_NAME=$(echo "$NODEFQDN" | cut -d. -f1)
+    echo "[INFO] Creating node '$NODE_NAME' in DB..."
+
+    # RAM and Disk calculation (in MB)
+    SAFE_RAM=$(get_safe_ram_mb)
+    SAFE_DISK=$(get_safe_disk_mb)
+    echo "[INFO] Assigning $SAFE_RAM MB RAM, $SAFE_DISK MB disk to node."
+
+    # Insert node directly to DB
+    # Note: adjust the daemonBase, location_id if you need. You might want to pre-create a location.
+    mariadb -u root panel <<EOF
+INSERT INTO locations (short, long) VALUES ('$NODE_NAME', 'Autocreated for $NODEFQDN') ON DUPLICATE KEY UPDATE id=id;
+INSERT INTO nodes (name, location_id, public, fqdn, scheme, behind_proxy, daemon_listen, daemon_sftp, daemon_base, memory, memory_overallocate, disk, disk_overallocate, upload_size, created_at, updated_at)
+SELECT
+  '$NODE_NAME',
+  (SELECT id FROM locations WHERE short='$NODE_NAME' LIMIT 1),
+  1,
+  '$NODEFQDN',
+  'https',
+  0,
+  8443,
+  2022,
+  '/var/lib/pterodactyl',
+  $SAFE_RAM,
+  0,
+  $SAFE_DISK,
+  0,
+  100,
+  NOW(),
+  NOW()
+FROM dual WHERE NOT EXISTS (SELECT 1 FROM nodes WHERE name='$NODE_NAME');
+EOF
+
+    echo "[INFO] Node created. Please finish config via Panel if needed."
+    echo "[INFO] Download your node config from panel UI and save to /etc/pterodactyl/config.yml."
+
+    # Restart wings and check port
+    systemctl restart wings
+    sleep 3
+    if nc -z localhost 8443; then
+        echo "[INFO] Wings is running and accepting connections on 8443!"
+    else
+        echo "[ERROR] Wings did NOT start or port 8443 is not open!"
+        exit 1
+    fi
 }
 
 # Arguments
@@ -288,6 +331,7 @@ if [ "$dist" = "ubuntu" ] && [ "$version" = "22.04" ]; then
     panel_install
     if [ "$WINGS" == true ]; then
         wings_install_and_activate
+        create_node_and_configure
     fi
     finish
 else
