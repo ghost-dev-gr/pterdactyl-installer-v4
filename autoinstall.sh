@@ -93,7 +93,7 @@ panel_conf(){
     if [ "$SSL" == true ]; then
         echo "[INFO] Setting up nginx with SSL for the panel..."
         rm -rf /etc/nginx/sites-enabled/default
-        curl -o /etc/nginx/sites-enabled/pterodactyl.conf https://raw.githubusercontent.com/ghost-dev-gr/pterodactyl-installer-v4/main/configs/pterodactyl-nginx-ssl.conf
+        curl -o /etc/nginx/sites-enabled/pterodactyl.conf https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/configs/pterodactyl-nginx-ssl.conf
         sed -i -e "s@<domain>@${PANELFQDN}@g" /etc/nginx/sites-enabled/pterodactyl.conf
         systemctl stop nginx
         certbot certonly --standalone -d $PANELFQDN --staple-ocsp --no-eff-email -m $EMAIL --agree-tos
@@ -101,7 +101,7 @@ panel_conf(){
     else
         echo "[INFO] Setting up nginx without SSL for the panel..."
         rm -rf /etc/nginx/sites-enabled/default
-        curl -o /etc/nginx/sites-enabled/pterodactyl.conf https://raw.githubusercontent.com/ghost-dev-gr/pterodactyl-installer-v4/main/configs/pterodactyl-nginx.conf
+        curl -o /etc/nginx/sites-enabled/pterodactyl.conf https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/configs/pterodactyl-nginx.conf
         sed -i -e "s@<domain>@${PANELFQDN}@g" /etc/nginx/sites-enabled/pterodactyl.conf
         systemctl restart nginx
     fi
@@ -201,9 +201,9 @@ wings_install_and_activate(){
     mkdir -p /etc/pterodactyl
     apt-get -y install curl tar unzip
 
-    curl -L -o /usr/local/bin/wings "https://github.com/pterodactyl/wings/releases/latest/download/wings_linux_$( [[ "$(uname -m)" == "x86_64" ]] && echo "amd64" || echo "arm64")"
+    curl -L -o /usr/local/bin/wings "https://github.com/pterdactyl/wings/releases/latest/download/wings_linux_$( [[ "$(uname -m)" == "x86_64" ]] && echo "amd64" || echo "arm64")"
     chmod u+x /usr/local/bin/wings
-    curl -o /etc/systemd/system/wings.service https://raw.githubusercontent.com/ghost-dev-gr/pterodactyl-installer-v4/main/configs/wings.service
+    curl -o /etc/systemd/system/wings.service https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/configs/wings.service
 
     echo "[INFO] Requesting SSL certificate for node domain $NODEFQDN..."
     certbot certonly --standalone --preferred-challenges http -d "$NODEFQDN" --agree-tos --no-eff-email -m "$EMAIL"
