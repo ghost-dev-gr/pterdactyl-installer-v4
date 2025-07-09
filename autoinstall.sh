@@ -223,8 +223,6 @@ panel_install(){
 
    
     cp .env.example .env
-    echo 'start of artisan key generate'
-    php artisan key:generate --force
     echo 'ended panel_install'
 
     panel_conf
