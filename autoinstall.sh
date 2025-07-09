@@ -222,8 +222,9 @@ wings_install_and_activate(){
     curl -o /etc/systemd/system/wings.service https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/configs/wings.service
 
     echo "[INFO] Requesting SSL certificate for node domain $NODEFQDN..."
-    certbot certonly --standalone --preferred-challenges http -d "$NODEFQDN" --agree-tos --no-eff-email -m "$EMAIL"
-
+    systemctl stop nginx
+    certbot certonly --standalone --non-interactive --preferred-challenges http -d "$NODEFQDN" --agree-tos --no-eff-email -m "$EMAIL"
+    systemctl start nginx
     systemctl daemon-reload
     systemctl enable --now wings
 
