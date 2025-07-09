@@ -74,10 +74,6 @@ panel_conf(){
         echo "[ERROR] Frontend build failed. See output above."; exit 1
     fi
 
-    if [ ! -f public/mix-manifest.json ] && [ ! -f public/build/manifest.json ]; then
-        echo "[ERROR] Asset manifest not found after build. Panel cannot run!"; exit 1
-    fi
-
     echo "[INFO] Generating app key and config cache..."
     sudo -u www-data php artisan key:generate --force
 
