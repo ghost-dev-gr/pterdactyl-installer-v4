@@ -60,6 +60,27 @@ panel_conf(){
         exit 1
     fi
 
+    # -----> FRONTEND BUILD FIX (yarn install & build)
+    echo "[INFO] Installing yarn if missing and building frontend assets..."
+    if ! command -v yarn >/dev/null 2>&1; then
+        npm install -g yarn || { echo "[ERROR] Could not install yarn!"; exit 1; }
+    fi
+
+    sudo -u www-data yarn install || { echo "[ERROR] yarn install failed!"; exit 1; }
+
+    if sudo -u www-data yarn build:production; then
+        echo "[INFO] Frontend assets built (production)."
+    elif sudo -u www-data yarn build; then
+        echo "[INFO] Frontend assets built (dev fallback)."
+    else
+        echo "[ERROR] Frontend build failed. See output above."; exit 1
+    fi
+
+    # Check for manifest
+    if [ ! -f public/mix-manifest.json ] && [ ! -f public/build/manifest.json ]; then
+        echo "[ERROR] Asset manifest not found after build. Panel cannot run!"; exit 1
+    fi
+
     echo "[INFO] Generating app key and config cache..."
     sudo -u www-data php artisan key:generate --force
 
@@ -92,6 +113,7 @@ panel_conf(){
         systemctl restart nginx
     fi
 }
+
 
 install_golang() {
   echo "Installing Go 1.22.1..."
