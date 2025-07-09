@@ -47,7 +47,7 @@ panel_conf(){
 
     echo "[INFO] (Re)installing composer dependencies..."
     sudo -u www-data -E composer clear-cache
-    sudo -u www-data -E composer install --no-dev --optimize-autoloader --no-interaction
+    composer install --no-dev --optimize-autoloader --no-interaction
 
     if [ $? -ne 0 ]; then
         echo "[ERROR] Composer install failed. Dumping permissions and cache:"
