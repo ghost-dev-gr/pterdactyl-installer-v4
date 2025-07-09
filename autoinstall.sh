@@ -42,7 +42,6 @@ panel_conf(){
     chown -R www-data:www-data /var/www/pterodactyl /var/www/.cache
     chmod -R 755 storage bootstrap/cache vendor /var/www/.cache/composer
 
-    # Clean up vendor/composer.lock for fresh Composer install
     rm -rf composer.lock vendor/*
 
     echo "[INFO] (Re)installing composer dependencies..."
@@ -60,14 +59,12 @@ panel_conf(){
         exit 1
     fi
 
-    # -----> FRONTEND BUILD FIX (yarn install & build)
     echo "[INFO] Installing yarn if missing and building frontend assets..."
     if ! command -v yarn >/dev/null 2>&1; then
         npm install -g yarn || { echo "[ERROR] Could not install yarn!"; exit 1; }
     fi
 
     sudo -u www-data yarn install || { echo "[ERROR] yarn install failed!"; exit 1; }
-
     if sudo -u www-data yarn build:production; then
         echo "[INFO] Frontend assets built (production)."
     elif sudo -u www-data yarn build; then
@@ -76,7 +73,6 @@ panel_conf(){
         echo "[ERROR] Frontend build failed. See output above."; exit 1
     fi
 
-    # Check for manifest
     if [ ! -f public/mix-manifest.json ] && [ ! -f public/build/manifest.json ]; then
         echo "[ERROR] Asset manifest not found after build. Panel cannot run!"; exit 1
     fi
@@ -100,7 +96,7 @@ panel_conf(){
     if [ "$SSL" == true ]; then
         echo "[INFO] Setting up nginx with SSL for the panel..."
         rm -rf /etc/nginx/sites-enabled/default
-        curl -o /etc/nginx/sites-enabled/pterodactyl.conf https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/configs/pterodactyl-nginx-ssl.conf
+        curl -o /etc/nginx/sites-enabled/pterodactyl.conf https://raw.githubusercontent.com/ghost-dev-gr/pterodactyl-installer-v4/main/configs/pterodactyl-nginx-ssl.conf
         sed -i -e "s@<domain>@${PANELFQDN}@g" /etc/nginx/sites-enabled/pterodactyl.conf
         systemctl stop nginx
         certbot certonly --standalone -d $PANELFQDN --staple-ocsp --no-eff-email -m $EMAIL --agree-tos
@@ -108,12 +104,60 @@ panel_conf(){
     else
         echo "[INFO] Setting up nginx without SSL for the panel..."
         rm -rf /etc/nginx/sites-enabled/default
-        curl -o /etc/nginx/sites-enabled/pterodactyl.conf https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/configs/pterodactyl-nginx.conf
+        curl -o /etc/nginx/sites-enabled/pterodactyl.conf https://raw.githubusercontent.com/ghost-dev-gr/pterodactyl-installer-v4/main/configs/pterodactyl-nginx.conf
         sed -i -e "s@<domain>@${PANELFQDN}@g" /etc/nginx/sites-enabled/pterodactyl.conf
         systemctl restart nginx
     fi
 }
 
+# -----> NODE SQL CREATION FUNCTION <-----
+create_node_in_db() {
+    # This function creates a node in the database directly!
+    # It auto-calculates RAM (max - 512MB) and disk (max - 5GB), min 10GB free for system.
+
+    NODE_NAME=$(echo "$NODEFQDN" | cut -d. -f1)
+    echo "[INFO] Creating node $NODE_NAME directly in the panel database."
+
+    # Query max safe RAM & Disk
+    TOTAL_RAM=$(free -m | awk '/^Mem:/{print $2}')
+    SAFE_RAM=$((TOTAL_RAM - 512))
+    if [ "$SAFE_RAM" -lt 512 ]; then SAFE_RAM=512; fi
+
+    DISK_PATH="/"
+    TOTAL_DISK=$(df -m "$DISK_PATH" | awk 'NR==2{print $2}')
+    SAFE_DISK=$((TOTAL_DISK - 5120))
+    if [ "$SAFE_DISK" -lt 10240 ]; then SAFE_DISK=10240; fi
+
+    DBPASSWORD=$(cat /var/www/pterodactyl/.env | grep DB_PASSWORD | cut -d= -f2-)
+    if [ -z "$DBPASSWORD" ]; then
+        echo "[ERROR] Could not find DB password in .env!"; exit 1
+    fi
+
+    cat <<EOF | mariadb -u pterodactyl -p"$DBPASSWORD" panel
+INSERT INTO nodes (name, description, location_id, fqdn, scheme, memory, memory_overallocate, disk, disk_overallocate, daemon_listen, daemon_sftp, daemon_base, public, behind_proxy, maintenance_mode, upload_size, created_at, updated_at)
+VALUES (
+    '$NODE_NAME',
+    'Auto-created by script',
+    1,
+    '$NODEFQDN',
+    'https',
+    $SAFE_RAM,
+    0,
+    $SAFE_DISK,
+    0,
+    8443,
+    2022,
+    '/var/lib/pterodactyl',
+    1,
+    0,
+    0,
+    100,
+    NOW(),
+    NOW()
+);
+EOF
+    echo "[INFO] Node $NODE_NAME created in panel DB (memory=${SAFE_RAM}MB, disk=${SAFE_DISK}MB)."
+}
 
 install_golang() {
   echo "Installing Go 1.22.1..."
@@ -142,7 +186,6 @@ add_custom_proxy_to_wings() {
     echo "Router file not found at $ROUTER_FILE - endpoints NOT added!"
   fi
 
-  # Rebuild and restart wings
   cd /srv/wings || exit 1
   systemctl stop wings || echo "Warning: Wings wasn't running, continuing..."
   go get github.com/go-acme/lego/v4 || { echo "Go get failed"; exit 1; }
@@ -198,7 +241,6 @@ panel_install(){
     apt-add-repository universe -y
     apt-add-repository -y ppa:ondrej/php
     echo "passed ppa"
-    # Add MariaDB repo
     sudo mkdir -p /usr/share/keyrings
     curl -fsSL https://packages.redis.io/gpg | sudo gpg --dearmor --batch --yes -o /usr/share/keyrings/redis-archive-keyring.gpg
     sudo chmod 644 /usr/share/keyrings/redis-archive-keyring.gpg
@@ -207,23 +249,18 @@ panel_install(){
     curl -sSL https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
 
     echo 'passed mariadb'
-    # ------ Now update to see all new packages ------
     apt-get update
 
-    # ------ Now install all needed packages ------
-    apt-get install -y mariadb-server tar unzip git redis-server certbot nginx
+    apt-get install -y mariadb-server tar unzip git redis-server certbot nginx jq netcat
     echo 'passed marmariadb-server iadb'
-    # Fix utf8mb4 collation (workaround for 22.04)
     sed -i 's/character-set-collations = utf8mb4=uca1400_ai_ci/character-set-collations = utf8mb4=utf8mb4_general_ci/' /etc/mysql/mariadb.conf.d/50-server.cnf || true
     systemctl restart mariadb
 
-    # PHP 8.3 for Ubuntu 22.04 (change here!)
     apt-get install -y php8.3 php8.3-{cli,gd,mysql,pdo,mbstring,tokenizer,bcmath,xml,fpm,curl,zip}
 
     update-alternatives --set php /usr/bin/php8.3
     curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
-    # Node v14 for panel build (node 14.x is what's officially supported for many panels)
     curl -sL https://deb.nodesource.com/setup_14.x | sudo -E bash -
     apt-get install -y nodejs
 
@@ -243,7 +280,6 @@ panel_install(){
     chown -R www-data:www-data /var/www/pterodactyl /var/www/.cache
     chmod -R 755 /var/www/pterodactyl/bootstrap/cache
 
-   
     cp .env.example .env
     echo 'ended panel_install'
 
@@ -288,6 +324,17 @@ if [ "$dist" = "ubuntu" ] && [ "$version" = "22.04" ]; then
     panel_install
     if [ "$WINGS" == true ]; then
         wings_install_and_activate
+        create_node_in_db
+
+        # Health check for wings on 8443
+        echo "[INFO] Checking if wings is live on port 8443..."
+        sleep 3
+        if nc -z localhost 8443; then
+            echo "[OK] Wings is running and accepting connections on 8443."
+        else
+            echo "[ERROR] Wings did NOT start or port 8443 is not open!"
+            exit 1
+        fi
     fi
     finish
 else
