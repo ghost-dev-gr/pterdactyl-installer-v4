@@ -40,7 +40,7 @@ create_location_in_db() {
     SQL_EXISTS=$(echo "SELECT id FROM locations WHERE short = '$LOC_NAME';" | mariadb -u pterodactyl -p"$DBPASSWORD" panel -N)
     if [ -z "$SQL_EXISTS" ]; then
         echo "[INFO] Creating location $LOC_NAME in DB."
-        echo "INSERT INTO locations (short, long, created_at, updated_at) VALUES ('$LOC_NAME', 'Script Created Location', NOW(), NOW());" | mariadb -u pterodactyl -p"$DBPASSWORD" panel
+        echo "INSERT INTO locations (short, \`long\`, created_at, updated_at) VALUES ('$LOC_NAME', 'Script Created Location', NOW(), NOW());" | mariadb -u pterodactyl -p"$DBPASSWORD" panel
     else
         echo "[INFO] Location $LOC_NAME already exists (id=$SQL_EXISTS)"
     fi
