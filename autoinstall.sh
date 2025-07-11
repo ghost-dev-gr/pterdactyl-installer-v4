@@ -66,7 +66,7 @@ create_node_in_db() {
         --upload-size 100 \
         --daemon-base /var/lib/pterodactyl \
         --daemon-sftp 2022 \
-        --daemon-listen 8080 \
+        --daemon-listen 8448 \
         --no-interaction
 }
 panel_conf(){
