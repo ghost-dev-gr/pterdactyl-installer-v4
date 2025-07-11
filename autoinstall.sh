@@ -323,7 +323,6 @@ if [ "$dist" = "ubuntu" ] && [ "$version" = "22.04" ]; then
     panel_install
     if [ "$WINGS" == true ]; then
         wings_install_and_activate
-         create_location_in_db
         create_node_in_db
 
         # Health check for wings on 8443
