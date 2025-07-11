@@ -30,7 +30,7 @@ create_location_in_db() {
     LONG_NAME="Script Created Location"
     cd /var/www/pterodactyl
     echo "[INFO] Ensuring location exists: $LOC_NAME"
-    sudo -u www-data php artisan tinker --execute="App\Models\Location::firstOrCreate(['short' => '$LOC_NAME'], ['long' => '$LONG_NAME']);"
+    sudo -u www-data php artisan tinker --execute="app\Models\Location::firstOrCreate(['short' => '$LOC_NAME'], ['long' => '$LONG_NAME']);"
 }
 
 create_node_in_db() {
@@ -45,8 +45,8 @@ create_node_in_db() {
     cd /var/www/pterodactyl
     echo "[INFO] Creating node $NODE_NAME via artisan..."
     sudo -u www-data php artisan tinker --execute="
-\$loc = App\Models\Location::where('short', '$LOC_NAME')->first();
-App\Models\Node::firstOrCreate([
+\$loc = app\Models\Location::where('short', '$LOC_NAME')->first();
+app\Models\Node::firstOrCreate([
     'uuid' => '$UUID',
     'name' => '$NODE_NAME',
     'location_id' => \$loc->id,
