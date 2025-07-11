@@ -51,47 +51,39 @@ create_location_in_db() {
 create_node_in_db() {
     LOC_NAME="lc.eu.made-by-orthodox-hosting"
     NODE_NAME=$(echo "$NODEFQDN" | cut -d. -f1)
-    UUID=$(cat /proc/sys/kernel/random/uuid)
     TOTAL_RAM=$(free -m | awk '/^Mem:/{print $2}')
-    SAFE_RAM=$((TOTAL_RAM - 1024))
+    SAFE_RAM=$((TOTAL_RAM - 1024)) # Leave 1GB for system
     TOTAL_DISK=$(df -m / | awk 'NR==2{print $2}')
-    SAFE_DISK=$((TOTAL_DISK - 1024))
+    SAFE_DISK=$((TOTAL_DISK - 1024)) # Leave 1GB for system
 
     cd /var/www/pterodactyl || { echo "[ERROR] Failed to cd to /var/www/pterodactyl"; return 1; }
-
-    # Find location id
-    LOCATION_ID=$(sudo -u www-data php artisan tinker --execute="echo App\\Models\\Location::where('short', '$LOC_NAME')->first()->id;")
+    
+    # First ensure the location exists and get its ID
+    LOCATION_ID=$(create_location_in_db)
     if [ -z "$LOCATION_ID" ]; then
-        echo "[ERROR] No location found!"
+        echo "[ERROR] Failed to get location ID"
         return 1
     fi
 
-    echo "[INFO] Creating node $NODE_NAME in location $LOCATION_ID via tinker..."
-    sudo -u www-data php artisan tinker --execute="
-use Illuminate\Support\Str;
-\$loc = App\Models\Location::find($LOCATION_ID);
-if (\$loc) {
-    App\Models\Node::firstOrCreate([
-        'uuid' => Str::uuid(),
-        'name' => '$NODE_NAME',
-        'description' => 'Automatically created node',
-        'location_id' => \$loc->id,
-        'fqdn' => '$NODEFQDN',
-        'scheme' => 'https',
-        'memory' => $SAFE_RAM,
-        'memory_overallocate' => 0,
-        'disk' => $SAFE_DISK,
-        'disk_overallocate' => 0,
-        'upload_size' => 100,
-        'daemonBase' => '/var/lib/pterodactyl',
-        'public' => 1,
-        'behind_proxy' => 0,
-        'maintenance_mode' => 0,
-    ]);
+    echo "[INFO] Creating node $NODE_NAME in location $LOCATION_ID via artisan..."
+    sudo -u www-data php artisan p:node:make \
+        --name "$NODE_NAME" \
+        --description "Automatically created node" \
+        --fqdn "$NODEFQDN" \
+        --public 1 \
+        --scheme https \
+        --behind-proxy 0 \
+        --maintenance-mode 0 \
+        --memory "$SAFE_RAM" \
+        --memory-overallocate 0 \
+        --disk "$SAFE_DISK" \
+        --disk-overallocate 0 \
+        --upload-size 100 \
+        --daemon-base /var/lib/pterodactyl \
+        --daemon-sftp 2022 \
+        --daemon-listen 8448 \
+        --no-interaction
 }
-"
-}
-
 panel_conf(){
     echo "[INFO] Starting panel configuration..."
 
