@@ -74,7 +74,7 @@ create_node_in_db() {
         --public 1 \
         --scheme https \
         --proxy 1 \
-        --maintenance-mode 0 \
+        --maintenance 0 \
         --maxMemory "$SAFE_RAM" \
         ---overallocateMemory 0 \
         --maxDisk "$SAFE_DISK" \
