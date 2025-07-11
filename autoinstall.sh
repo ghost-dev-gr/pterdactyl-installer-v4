@@ -30,10 +30,22 @@ create_location_in_db() {
     LONG_NAME="Script Created Location"
     cd /var/www/pterodactyl || { echo "[ERROR] Failed to cd to /var/www/pterodactyl"; return 1; }
     echo "[INFO] Ensuring location exists: $LOC_NAME"
-    sudo -u www-data php artisan p:location:make \
+    
+    # Create location and capture output to get the ID
+    OUTPUT=$(sudo -u www-data php artisan p:location:make \
         --short "$LOC_NAME" \
         --long "$LONG_NAME" \
-        --no-interaction
+        --no-interaction 2>&1)
+    
+    # Extract location ID from output
+    LOCATION_ID=$(echo "$OUTPUT" | grep -oP 'ID of \K\d+')
+    
+    if [ -z "$LOCATION_ID" ]; then
+        # If we couldn't extract ID, try to get it from database
+        LOCATION_ID=$(sudo -u www-data php artisan tinker --execute="echo app\Models\Location::where('short', '$LOC_NAME')->first()->id;")
+    fi
+    
+    echo "$LOCATION_ID"
 }
 
 create_node_in_db() {
@@ -46,14 +58,18 @@ create_node_in_db() {
 
     cd /var/www/pterodactyl || { echo "[ERROR] Failed to cd to /var/www/pterodactyl"; return 1; }
     
-    # First ensure the location exists
-    create_location_in_db || { echo "[ERROR] Failed to create location"; return 1; }
+    # First ensure the location exists and get its ID
+    LOCATION_ID=$(create_location_in_db)
+    if [ -z "$LOCATION_ID" ]; then
+        echo "[ERROR] Failed to get location ID"
+        return 1
+    fi
 
-    echo "[INFO] Creating node $NODE_NAME via artisan..."
+    echo "[INFO] Creating node $NODE_NAME in location $LOCATION_ID via artisan..."
     sudo -u www-data php artisan p:node:make \
         --name "$NODE_NAME" \
         --description "Automatically created node" \
-        --location "$LOC_NAME" \
+        --location-id "$LOCATION_ID" \
         --fqdn "$NODEFQDN" \
         --public 1 \
         --scheme https \
