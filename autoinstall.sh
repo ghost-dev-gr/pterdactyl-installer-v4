@@ -69,19 +69,20 @@ create_node_in_db() {
     sudo -u www-data php artisan p:node:make \
         --name "$NODE_NAME" \
         --description "Automatically created node" \
+        --locationId "$LOCATION_ID" \
         --fqdn "$NODEFQDN" \
         --public 1 \
         --scheme https \
-        --behind-proxy 0 \
+        --proxy 1 \
         --maintenance-mode 0 \
-        --memory "$SAFE_RAM" \
-        --memory-overallocate 0 \
-        --disk "$SAFE_DISK" \
-        --disk-overallocate 0 \
-        --upload-size 100 \
-        --daemon-base /var/lib/pterodactyl \
-        --daemon-sftp 2022 \
-        --daemon-listen 8448 \
+        --maxMemory "$SAFE_RAM" \
+        ---overallocateMemory 0 \
+        --maxDisk "$SAFE_DISK" \
+        --overallocateDisk 0 \
+        --uploadSize 100 \
+        --daemonBase /var/lib/pterodactyl \
+        --daemonSFTPPort 2022 \
+        --ddaemonListeningPort 8448 \
         --no-interaction
 }
 panel_conf(){
