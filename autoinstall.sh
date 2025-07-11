@@ -76,7 +76,7 @@ create_node_in_db() {
         --proxy 1 \
         --maintenance 0 \
         --maxMemory "$SAFE_RAM" \
-        ---overallocateMemory 0 \
+        --overallocateMemory 0 \
         --maxDisk "$SAFE_DISK" \
         --overallocateDisk 0 \
         --uploadSize 100 \
