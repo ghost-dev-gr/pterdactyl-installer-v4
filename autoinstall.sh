@@ -27,91 +27,43 @@ finish(){
 
 create_location_in_db() {
     LOC_NAME="lc.eu.made-by-orthodox-hosting"
+    LONG_NAME="Script Created Location"
+    cd /var/www/pterodactyl
     echo "[INFO] Ensuring location exists: $LOC_NAME"
-    DBPASSWORD=$(grep DB_PASSWORD /var/www/pterodactyl/.env | cut -d= -f2-)
-
-    # Only create user if it doesn't exist; does not reset password if present
-    sudo mariadb -e "CREATE USER IF NOT EXISTS 'pterodactyl'@'127.0.0.1' IDENTIFIED BY '${DBPASSWORD}';"
-    sudo mariadb -e "CREATE USER IF NOT EXISTS 'pterodactyl'@'localhost' IDENTIFIED BY '${DBPASSWORD}';"
-    sudo mariadb -e "GRANT ALL PRIVILEGES ON panel.* TO 'pterodactyl'@'127.0.0.1';"
-    sudo mariadb -e "GRANT ALL PRIVILEGES ON panel.* TO 'pterodactyl'@'localhost';"
-    sudo mariadb -e "FLUSH PRIVILEGES;"
-
-    SQL_EXISTS=$(echo "SELECT id FROM locations WHERE short = '$LOC_NAME';" | mariadb -u pterodactyl -p"$DBPASSWORD" panel -N)
-    if [ -z "$SQL_EXISTS" ]; then
-        echo "[INFO] Creating location $LOC_NAME in DB."
-        echo "INSERT INTO locations (short, \`long\`, created_at, updated_at) VALUES ('$LOC_NAME', 'Script Created Location', NOW(), NOW());" | mariadb -u pterodactyl -p"$DBPASSWORD" panel
-    else
-        echo "[INFO] Location $LOC_NAME already exists (id=$SQL_EXISTS)"
-    fi
+    sudo -u www-data php artisan tinker --execute="App\Models\Location::firstOrCreate(['short' => '$LOC_NAME'], ['long' => '$LONG_NAME']);"
 }
+
 create_node_in_db() {
     LOC_NAME="lc.eu.made-by-orthodox-hosting"
     NODE_NAME=$(echo "$NODEFQDN" | cut -d. -f1)
-    DBPASSWORD=$(grep DB_PASSWORD /var/www/pterodactyl/.env | cut -d= -f2-)
     UUID=$(cat /proc/sys/kernel/random/uuid)
-
-    # Only create user if it doesn't exist; does not reset password if present
-    sudo mariadb -e "CREATE USER IF NOT EXISTS 'pterodactyl'@'127.0.0.1' IDENTIFIED BY '${DBPASSWORD}';"
-    sudo mariadb -e "CREATE USER IF NOT EXISTS 'pterodactyl'@'localhost' IDENTIFIED BY '${DBPASSWORD}';"
-    sudo mariadb -e "GRANT ALL PRIVILEGES ON panel.* TO 'pterodactyl'@'127.0.0.1';"
-    sudo mariadb -e "GRANT ALL PRIVILEGES ON panel.* TO 'pterodactyl'@'localhost';"
-    sudo mariadb -e "FLUSH PRIVILEGES;"
-
-    LOC_ID=$(echo "SELECT id FROM locations WHERE short = '$LOC_NAME';" | mariadb -u pterodactyl -p"$DBPASSWORD" panel -N)
-    echo "[INFO] Using location_id: $LOC_ID"
-
-    # Use 100% of available RAM
     TOTAL_RAM=$(free -m | awk '/^Mem:/{print $2}')
     SAFE_RAM=$TOTAL_RAM
-
-    # Use 100% of available disk space (in MB)
     TOTAL_DISK=$(df -m / | awk 'NR==2{print $2}')
     SAFE_DISK=$TOTAL_DISK
 
-    # Use 100% of available CPU cores
-    TOTAL_CORES=$(nproc)
-    SAFE_CORES=$TOTAL_CORES
-
-    # Avoid duplicate nodes!
-    EXISTING=$(echo "SELECT id FROM nodes WHERE fqdn = '$NODEFQDN';" | mariadb -u pterodactyl -p"$DBPASSWORD" panel -N)
-    if [ -n "$EXISTING" ]; then
-        echo "[INFO] Node $NODE_NAME already exists in DB (id=$EXISTING), skipping creation."
-        return
-    fi
-
-    echo "[INFO] Creating node $NODE_NAME (fqdn: $NODEFQDN, RAM: $SAFE_RAM MB, Disk: $SAFE_DISK MB, Cores: $SAFE_CORES)"
-    cat <<EOF | mariadb -u pterodactyl -p"$DBPASSWORD" panel
-INSERT INTO nodes (
-    uuid, name, description, location_id, fqdn, scheme, memory, memory_overallocate, disk,
-    disk_overallocate, upload_size, daemonBase, public, behind_proxy, maintenance_mode,
-    created_at, updated_at
-)
-VALUES (
-    '$UUID',
-    '$NODE_NAME',
-    'Auto-created by script',
-    $LOC_ID,
-    '$NODEFQDN',
-    'https',
-    $SAFE_RAM,
-    0,
-    $SAFE_DISK,
-    0,
-    100,
-    '/var/lib/pterodactyl',
-    1,
-    0,
-    0,
-    NOW(),
-    NOW()
-);
-EOF
-
-    # If your schema supports a "cores" or "cpu" field in the nodes table, add it above like: $SAFE_CORES,
+    cd /var/www/pterodactyl
+    echo "[INFO] Creating node $NODE_NAME via artisan..."
+    sudo -u www-data php artisan tinker --execute="
+\$loc = App\Models\Location::where('short', '$LOC_NAME')->first();
+App\Models\Node::firstOrCreate([
+    'uuid' => '$UUID',
+    'name' => '$NODE_NAME',
+    'location_id' => \$loc->id,
+    'fqdn' => '$NODEFQDN',
+    'scheme' => 'https',
+    'memory' => $SAFE_RAM,
+    'memory_overallocate' => 0,
+    'disk' => $SAFE_DISK,
+    'disk_overallocate' => 0,
+    'upload_size' => 100,
+    'daemonBase' => '/var/lib/pterodactyl',
+    'public' => 1,
+    'behind_proxy' => 0,
+    'maintenance_mode' => 0,
+]);
+"
 }
-
-
 
 panel_conf(){
     echo "[INFO] Starting panel configuration..."
