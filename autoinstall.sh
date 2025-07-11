@@ -45,11 +45,11 @@ create_location_in_db() {
         echo "[INFO] Location $LOC_NAME already exists (id=$SQL_EXISTS)"
     fi
 }
-
 create_node_in_db() {
     LOC_NAME="lc.eu.made-by-orthodox-hosting"
     NODE_NAME=$(echo "$NODEFQDN" | cut -d. -f1)
     DBPASSWORD=$(grep DB_PASSWORD /var/www/pterodactyl/.env | cut -d= -f2-)
+    UUID=$(cat /proc/sys/kernel/random/uuid)
 
     # Only create user if it doesn't exist; does not reset password if present
     sudo mariadb -e "CREATE USER IF NOT EXISTS 'pterodactyl'@'127.0.0.1' IDENTIFIED BY '${DBPASSWORD}';"
@@ -61,13 +61,17 @@ create_node_in_db() {
     LOC_ID=$(echo "SELECT id FROM locations WHERE short = '$LOC_NAME';" | mariadb -u pterodactyl -p"$DBPASSWORD" panel -N)
     echo "[INFO] Using location_id: $LOC_ID"
 
+    # Use 100% of available RAM
     TOTAL_RAM=$(free -m | awk '/^Mem:/{print $2}')
-    SAFE_RAM=$((TOTAL_RAM - 512))
-    [ "$SAFE_RAM" -lt 512 ] && SAFE_RAM=512
+    SAFE_RAM=$TOTAL_RAM
 
+    # Use 100% of available disk space (in MB)
     TOTAL_DISK=$(df -m / | awk 'NR==2{print $2}')
-    SAFE_DISK=$((TOTAL_DISK - 5120))
-    [ "$SAFE_DISK" -lt 10240 ] && SAFE_DISK=10240
+    SAFE_DISK=$TOTAL_DISK
+
+    # Use 100% of available CPU cores
+    TOTAL_CORES=$(nproc)
+    SAFE_CORES=$TOTAL_CORES
 
     # Avoid duplicate nodes!
     EXISTING=$(echo "SELECT id FROM nodes WHERE fqdn = '$NODEFQDN';" | mariadb -u pterodactyl -p"$DBPASSWORD" panel -N)
@@ -75,14 +79,16 @@ create_node_in_db() {
         echo "[INFO] Node $NODE_NAME already exists in DB (id=$EXISTING), skipping creation."
         return
     fi
-echo "[INFO] Creating node $NODE_NAME (fqdn: $NODEFQDN, RAM: $SAFE_RAM MB, Disk: $SAFE_DISK MB)"
-cat <<EOF | mariadb -u pterodactyl -p"$DBPASSWORD" panel
+
+    echo "[INFO] Creating node $NODE_NAME (fqdn: $NODEFQDN, RAM: $SAFE_RAM MB, Disk: $SAFE_DISK MB, Cores: $SAFE_CORES)"
+    cat <<EOF | mariadb -u pterodactyl -p"$DBPASSWORD" panel
 INSERT INTO nodes (
-    name, description, location_id, fqdn, scheme, memory, memory_overallocate, disk,
+    uuid, name, description, location_id, fqdn, scheme, memory, memory_overallocate, disk,
     disk_overallocate, upload_size, daemonBase, public, behind_proxy, maintenance_mode,
     created_at, updated_at
 )
 VALUES (
+    '$UUID',
     '$NODE_NAME',
     'Auto-created by script',
     $LOC_ID,
@@ -102,7 +108,9 @@ VALUES (
 );
 EOF
 
+    # If your schema supports a "cores" or "cpu" field in the nodes table, add it above like: $SAFE_CORES,
 }
+
 
 
 panel_conf(){
