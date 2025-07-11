@@ -53,7 +53,7 @@ create_node_in_db() {
     sudo -u www-data php artisan p:node:make \
         --name "$NODE_NAME" \
         --description "Automatically created node" \
-        --location-id 1 \
+        --location "$LOC_NAME" \
         --fqdn "$NODEFQDN" \
         --public 1 \
         --scheme https \
