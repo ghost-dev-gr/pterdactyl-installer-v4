@@ -49,11 +49,13 @@ create_location_in_db() {
 }
 
 generate_node_config() {
+    echo "running generate node"
 sudo mariadb <<EOF
-GRANT ALL PRIVILEGES ON panel.* TO 'pterodactyl'@'localhost' IDENTIFIED BY 'D5AZ1AV0dVXQwcxn';
-GRANT ALL PRIVILEGES ON panel.* TO 'pterodactyl'@'127.0.0.1' IDENTIFIED BY 'D5AZ1AV0dVXQwcxn';
+GRANT ALL PRIVILEGES ON panel.* TO 'pterodactyl'@'localhost';
+GRANT ALL PRIVILEGES ON panel.* TO 'pterodactyl'@'127.0.0.1';
 FLUSH PRIVILEGES;
 EOF
+echo "passed mariadb access"
 
 
   NODE_FQDN="$1"
