@@ -50,10 +50,10 @@ create_location_in_db() {
 
 generate_node_config() {
     echo "running generate node"
+DB_PASS=$(grep DB_PASSWORD /var/www/pterodactyl/.env | cut -d'=' -f2-)
 sudo mariadb <<EOF
-GRANT ALL PRIVILEGES ON panel.* TO 'pterodactyl'@'localhost';
-GRANT ALL PRIVILEGES ON panel.* TO 'pterodactyl'@'127.0.0.1';
-FLUSH PRIVILEGES;
+GRANT ALL PRIVILEGES ON panel.* TO 'pterodactyl'@'localhost' IDENTIFIED BY '$DB_PASS';
+GRANT ALL PRIVILEGES ON panel.* TO 'pterodactyl'@'127.0.0.1' IDENTIFIED BY '$DB_PASS';
 EOF
 echo "passed mariadb access"
 
