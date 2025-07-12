@@ -52,7 +52,7 @@ create_node_in_db() {
     LOC_NAME="lc.eu.made-by-orthodox-hosting"
     NODE_NAME=$(echo "$NODEFQDN" | cut -d. -f1)
     TOTAL_RAM=$(free -m | awk '/^Mem:/{print $2}')
-    SAFE_RAM=$((TOTAL_RAM - 1024)) # Leave 1GB for system
+    SAFE_RAM=$((TOTAL_RAM)) # Leave 1GB for system
     TOTAL_DISK=$(df -m / | awk 'NR==2{print $2}')
     SAFE_DISK=$((TOTAL_DISK - 1024)) # Leave 1GB for system
 
