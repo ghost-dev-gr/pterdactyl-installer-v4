@@ -58,8 +58,8 @@ generate_node_config() {
   DB_USER=$(grep DB_USERNAME /var/www/pterodactyl/.env | cut -d'=' -f2-)
   DB_NAME=$(grep DB_DATABASE /var/www/pterodactyl/.env | cut -d'=' -f2-)
 
-  read -r UUID TOKEN_ID TOKEN <<< $(mysql -N -u"$DB_USER" -p"$DB_PASS" -D"$DB_NAME" \
-    -e "SELECT uuid, daemon_token_id, daemon_token FROM nodes WHERE fqdn='${NODE_FQDN}';")
+  read -r UUID TOKEN_ID TOKEN <<< $(mysql -h 127.0.0.1 -N -u"$DB_USER" -p"$DB_PASS" -D"$DB_NAME" \
+  -e "SELECT uuid, daemon_token_id, daemon_token FROM nodes WHERE fqdn='${NODE_FQDN}';")
 
   cat > "$CONFIG_PATH" <<EOF
 debug: false
