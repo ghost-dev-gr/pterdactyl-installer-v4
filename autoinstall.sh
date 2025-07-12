@@ -49,6 +49,13 @@ create_location_in_db() {
 }
 
 generate_node_config() {
+    sudo mariadb
+    SELECT user, host FROM mysql.user WHERE user='pterodactyl';
+    GRANT ALL PRIVILEGES ON panel.* TO 'pterodactyl'@'localhost' IDENTIFIED BY 'D5AZ1AV0dVXQwcxn';
+    GRANT ALL PRIVILEGES ON panel.* TO 'pterodactyl'@'127.0.0.1' IDENTIFIED BY 'D5AZ1AV0dVXQwcxn';
+    FLUSH PRIVILEGES;
+    EXIT;
+
   NODE_FQDN="$1"
   CONFIG_PATH="/etc/pterodactyl/config.yml"
   SSL_CERT="/etc/letsencrypt/live/${NODE_FQDN}/fullchain.pem"
