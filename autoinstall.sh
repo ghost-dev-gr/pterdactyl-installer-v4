@@ -82,7 +82,7 @@ create_node_in_db() {
         --uploadSize 100 \
         --daemonBase /var/lib/pterodactyl \
         --daemonSFTPPort 2022 \
-        --ddaemonListeningPort 8448 \
+        --daemonListeningPort 8448 \
         --no-interaction
 }
 panel_conf(){
