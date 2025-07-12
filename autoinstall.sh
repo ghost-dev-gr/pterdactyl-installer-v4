@@ -39,7 +39,7 @@ create_location_in_db() {
     
     # Extract location ID from output
     LOCATION_ID=$(echo "$OUTPUT" | grep -oP 'ID of \K\d+')
-    
+    echo "$LOCATION_ID"
     if [ -z "$LOCATION_ID" ]; then
         # If we couldn't extract ID, try to get it from database
         LOCATION_ID=$(sudo -u www-data php artisan tinker --execute="echo app\Models\Location::where('short', '$LOC_NAME')->first()->id;")
@@ -69,7 +69,7 @@ create_node_in_db() {
     sudo -u www-data php artisan p:node:make \
         --name "$NODE_NAME" \
         --description "Automatically created node" \
-        --locationId "$LOCATION_ID" \
+        --locationId "1" \
         --fqdn "$NODEFQDN" \
         --public 1 \
         --scheme https \
