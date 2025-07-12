@@ -72,7 +72,7 @@ EOF
     SQL_CLIENT="mysql"
   fi
 
-  read -r UUID TOKEN_ID TOKEN <<< $($SQL_CLIENT -h 127.0.0.1 -N -u"$DB_USER" -p"$DB_PASS" -D"$DB_NAME" \
+  read -r UUID TOKEN_ID TOKEN <<< $(mariadb -h 127.0.0.1 -u"$DB_USER" -p"$DB_PASS" -D"$DB_NAME" \
     -e "SELECT uuid, daemon_token_id, daemon_token FROM nodes WHERE fqdn='${NODE_FQDN}';")
 
   cat > "$CONFIG_PATH" <<EOF
