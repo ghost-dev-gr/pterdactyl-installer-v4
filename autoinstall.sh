@@ -48,6 +48,142 @@ create_location_in_db() {
     echo "$LOCATION_ID"
 }
 
+generate_node_config() {
+  NODE_FQDN="$1"
+  CONFIG_PATH="/etc/pterodactyl/config.yml"
+  SSL_CERT="/etc/letsencrypt/live/${NODE_FQDN}/fullchain.pem"
+  SSL_KEY="/etc/letsencrypt/live/${NODE_FQDN}/privkey.pem"
+
+  DB_PASS=$(grep DB_PASSWORD /var/www/pterodactyl/.env | cut -d'=' -f2-)
+  DB_USER=$(grep DB_USERNAME /var/www/pterodactyl/.env | cut -d'=' -f2-)
+  DB_NAME=$(grep DB_DATABASE /var/www/pterodactyl/.env | cut -d'=' -f2-)
+
+  read -r UUID TOKEN_ID TOKEN <<< $(mysql -N -u"$DB_USER" -p"$DB_PASS" -D"$DB_NAME" \
+    -e "SELECT uuid, daemon_token_id, daemon_token FROM nodes WHERE fqdn='${NODE_FQDN}';")
+
+  cat > "$CONFIG_PATH" <<EOF
+debug: false
+app_name: Pterodactyl
+uuid: $UUID
+token_id: $TOKEN_ID
+token: $TOKEN
+api:
+  host: 0.0.0.0
+  port: 8448
+  ssl:
+    enabled: true
+    cert: $SSL_CERT
+    key: $SSL_KEY
+  disable_remote_download: false
+  upload_limit: 100
+  trusted_proxies:
+    - 173.245.48.0/20
+    - 103.21.244.0/22
+    - 103.22.200.0/22
+    - 103.31.4.0/22
+    - 141.101.64.0/18
+    - 108.162.192.0/18
+    - 190.93.240.0/20
+    - 188.114.96.0/20
+    - 197.234.240.0/22
+    - 198.41.128.0/17
+    - 162.158.0.0/15
+    - 104.16.0.0/13
+    - 104.24.0.0/14
+    - 172.64.0.0/13
+    - 131.0.72.0/22
+system:
+  root_directory: /var/lib/pterodactyl
+  log_directory: /var/log/pterodactyl
+  data: /var/lib/pterodactyl/volumes
+  archive_directory: /var/lib/pterodactyl/archives
+  backup_directory: /var/lib/pterodactyl/backups
+  tmp_directory: /tmp/pterodactyl
+  username: pterodactyl
+  timezone: Etc/UTC
+  user:
+    rootless:
+      enabled: false
+      container_uid: 0
+      container_gid: 0
+    uid: 998
+    gid: 998
+  passwd:
+    enabled: false
+    directory: /run/wings/etc
+  disk_check_interval: 150
+  activity_send_interval: 60
+  activity_send_count: 100
+  check_permissions_on_boot: true
+  enable_log_rotate: true
+  websocket_log_count: 150
+  sftp:
+    bind_address: 0.0.0.0
+    bind_port: 2022
+    read_only: false
+  crash_detection:
+    enabled: true
+    detect_clean_exit_as_crash: true
+    timeout: 60
+  backups:
+    write_limit: 0
+    compression_level: best_speed
+  transfers:
+    download_limit: 0
+  openat_mode: auto
+docker:
+  network:
+    interface: 172.18.0.1
+    dns: []
+    name: pterodactyl_nw
+    ispn: false
+    driver: ""
+    network_mode: pterodactyl_nw
+    is_internal: false
+    enable_icc: true
+    network_mtu: 1500
+    interfaces:
+      v4:
+        subnet: 172.18.0.0/16
+        gateway: 172.18.0.1
+      v6:
+        subnet: fdba:17c8:6c94::/64
+        gateway: fdba:17c8:6c94::1011
+  domainname: ""
+  registries: {}
+  tmpfs_size: 100
+  container_pid_limit: 512
+  installer_limits:
+    memory: 1024
+    cpu: 100
+  overhead:
+    override: false
+    default_multiplier: 1.05
+    multipliers: {}
+  use_performant_inspect: true
+  userns_mode: ""
+  log_config:
+    type: local
+    config: {}
+throttles:
+  enabled: true
+  lines: 2000
+  line_reset_interval: 100
+remote: https://${PANELFQDN}
+remote_query:
+  timeout: 30
+  boot_servers_per_page: 50
+allowed_mounts: []
+allowed_origins: []
+allow_cors_private_network: false
+ignore_panel_config_updates: false
+EOF
+
+  chown pterodactyl:pterodactyl "$CONFIG_PATH" || true
+  chmod 600 "$CONFIG_PATH"
+  echo "[INFO] Node config.yml created for $NODE_FQDN"
+}
+
 create_node_in_db() {
     LOC_NAME="lc.eu.made-by-orthodox-hosting"
     NODE_NAME=$(echo "$NODEFQDN" | cut -d. -f1)
@@ -338,6 +474,7 @@ if [ "$dist" = "ubuntu" ] && [ "$version" = "22.04" ]; then
     if [ "$WINGS" == true ]; then
         wings_install_and_activate
         create_node_in_db
+        generate_node_config "$NODEFQDN"
 
         # Health check for wings on 8443
         echo "[INFO] Checking if wings is live on port 8443..."
