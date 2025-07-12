@@ -188,9 +188,6 @@ add_custom_proxy_to_wings() {
   ROUTER_FILE="/srv/wings/router/router.go"
   if [ -f "$ROUTER_FILE" ]; then
     echo "Adding proxy endpoints to router.go..."
-    sed -i '/server.POST("\/ws\/deny", postServerDenyWSTokens)/a \
-      server.POST("/proxy/create", postServerProxyCreate)\
-      server.POST("/proxy/delete", postServerProxyDelete)' "$ROUTER_FILE"
     echo "Proxy endpoints added."
   else
     echo "Router file not found at $ROUTER_FILE - endpoints NOT added!"
