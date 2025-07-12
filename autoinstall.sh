@@ -176,6 +176,7 @@ install_golang() {
   tar -C /usr/local -xzf /tmp/go.tar.gz
   echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile
   source /etc/profile
+  export PATH=$PATH:/usr/local/go/bin
 }
 
 add_custom_proxy_to_wings() {
