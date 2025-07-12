@@ -58,8 +58,15 @@ generate_node_config() {
   DB_USER=$(grep DB_USERNAME /var/www/pterodactyl/.env | cut -d'=' -f2-)
   DB_NAME=$(grep DB_DATABASE /var/www/pterodactyl/.env | cut -d'=' -f2-)
 
-  read -r UUID TOKEN_ID TOKEN <<< $(mysql -h 127.0.0.1 -N -u"$DB_USER" -p"$DB_PASS" -D"$DB_NAME" \
-  -e "SELECT uuid, daemon_token_id, daemon_token FROM nodes WHERE fqdn='${NODE_FQDN}';")
+  # Use mariadb client if available, fallback to mysql if not
+  if command -v mariadb >/dev/null 2>&1; then
+    SQL_CLIENT="mariadb"
+  else
+    SQL_CLIENT="mysql"
+  fi
+
+  read -r UUID TOKEN_ID TOKEN <<< $($SQL_CLIENT -h 127.0.0.1 -N -u"$DB_USER" -p"$DB_PASS" -D"$DB_NAME" \
+    -e "SELECT uuid, daemon_token_id, daemon_token FROM nodes WHERE fqdn='${NODE_FQDN}';")
 
   cat > "$CONFIG_PATH" <<EOF
 debug: false
@@ -179,7 +186,8 @@ allow_cors_private_network: false
 ignore_panel_config_updates: false
 EOF
 
-  chown pterodactyl:pterodactyl "$CONFIG_PATH" || true
+  # Use root:root for ownership (or skip chown if running as root)
+  chown root:root "$CONFIG_PATH"
   chmod 600 "$CONFIG_PATH"
   echo "[INFO] Node config.yml created for $NODE_FQDN"
 }
