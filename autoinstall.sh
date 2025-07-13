@@ -67,16 +67,15 @@ echo "passed mariadb access"
   DB_USER=$(grep DB_USERNAME /var/www/pterodactyl/.env | cut -d'=' -f2-)
   DB_NAME=$(grep DB_DATABASE /var/www/pterodactyl/.env | cut -d'=' -f2-)
 
-  # Use mariadb client if available, fallback to mysql if not
-  if command -v mariadb >/dev/null 2>&1; then
-    SQL_CLIENT="mariadb"
-  else
-    SQL_CLIENT="mysql"
-  fi
+  read -r UUID TOKEN_ID TOKEN <<< $(mariadb -h 127.0.0.1 -u"$DB_USER" -p"$DB_PASS" -D"$DB_NAME" \
+    -e "SELECT uuid, daemon_token_id, daemon_token FROM nodes WHERE fqdn='${NODE_FQDN}';")
 
   read -r UUID TOKEN_ID TOKEN <<< $(mariadb -h 127.0.0.1 -u"$DB_USER" -p"$DB_PASS" -D"$DB_NAME" \
     -e "SELECT uuid, daemon_token_id, daemon_token FROM nodes WHERE fqdn='${NODE_FQDN}';")
 
+  echo $UUID
+  echo $TOKEN_ID
+  eho $TOKEN
   cat > "$CONFIG_PATH" <<EOF
 debug: false
 app_name: Pterodactyl
