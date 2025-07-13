@@ -264,7 +264,6 @@ setup_nginx_for_node() {
 HTML
 
   cat > "$NGINX_CONF_PATH" <<EOF
-
 map \$http_authorization \$is_api {
     default 0;
     "~.+"   1;
@@ -280,30 +279,31 @@ server {
     listen 443 ssl http2;
     server_name $NODEFQDN;
 
-    ssl_certificate  $SSL_CERT;
+    ssl_certificate     $SSL_CERT;
     ssl_certificate_key $SSL_KEY;
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers on;
 
-    # Decide: proxy to wings or show HTML
     location / {
-        # If it's an API call with Authorization header, proxy to wings
-        if (\$is_api) {
-            proxy_pass https://127.0.0.1:8443;
-            proxy_set_header Host \$host;
-            proxy_set_header X-Real-IP \$remote_addr;
-            proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto \$scheme;
-            proxy_ssl_verify off;
-            break;
+        if (\$is_api = 0) {
+            return 307 /_landing;
         }
-        # Otherwise, show static HTML
+        proxy_pass https://127.0.0.1:8443;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+        proxy_ssl_verify off;
+    }
+
+    location /_landing {
         root /var/www/html;
         index node-landing.html;
         try_files /node-landing.html =404;
     }
 }
 EOF
+
 
   ln -sf "$NGINX_CONF_PATH" "$NGINX_LINK_PATH"
   nginx -t && systemctl reload nginx
