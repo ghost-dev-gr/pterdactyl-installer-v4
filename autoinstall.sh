@@ -342,6 +342,7 @@ add_custom_proxy_to_wings() {
   else
     echo "Router file not found at $ROUTER_FILE - endpoints NOT added!"
   fi
+  export PATH=$PATH:/usr/local/go/bin
 
   cd /srv/wings || exit 1
   systemctl stop wings || echo "Warning: Wings wasn't running, continuing..."
@@ -375,6 +376,7 @@ wings_install_and_activate(){
     systemctl start nginx
     systemctl daemon-reload
     systemctl enable --now wings
+    export PATH=$PATH:/usr/local/go/bin
 
     echo ""
     echo "[!] Wings installed and started at https://$NODEFQDN:8443"
