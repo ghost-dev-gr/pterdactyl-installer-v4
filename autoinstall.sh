@@ -87,7 +87,7 @@ token_id: $TOKEN_ID
 token: $TOKEN
 api:
   host: 0.0.0.0
-  port: 8448
+  port: 8443
   ssl:
     enabled: true
     cert: $SSL_CERT
