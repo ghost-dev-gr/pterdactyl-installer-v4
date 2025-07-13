@@ -263,21 +263,32 @@ setup_nginx_for_node() {
 </html>
 HTML
 
-  # Nginx config: Show HTML if NO Authorization header, else proxy to Wings
   cat > "$NGINX_CONF_PATH" <<EOF
+
+map \$http_authorization \$is_api {
+    default 0;
+    "~.+"   1;
+}
+
+server {
+    listen 80;
+    server_name $NODEFQDN;
+    return 301 https://\$host\$request_uri;
+}
+
 server {
     listen 443 ssl http2;
     server_name $NODEFQDN;
 
-    ssl_certificate     $SSL_CERT;
+    ssl_certificate  $SSL_CERT;
     ssl_certificate_key $SSL_KEY;
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers on;
 
-    # If Authorization header is present, proxy to Wings
+    # Decide: proxy to wings or show HTML
     location / {
-        # If the request has an Authorization header, proxy to Wings
-        if (\$http_authorization != "") {
+        # If it's an API call with Authorization header, proxy to wings
+        if (\$is_api) {
             proxy_pass https://127.0.0.1:8443;
             proxy_set_header Host \$host;
             proxy_set_header X-Real-IP \$remote_addr;
@@ -286,7 +297,7 @@ server {
             proxy_ssl_verify off;
             break;
         }
-        # Otherwise, serve the custom HTML page
+        # Otherwise, show static HTML
         root /var/www/html;
         index node-landing.html;
         try_files /node-landing.html =404;
@@ -303,7 +314,6 @@ EOF
   crontab -l 2>/dev/null | grep -q 'certbot renew' || \
   (crontab -l 2>/dev/null; echo "0 4 * * * certbot renew --deploy-hook 'systemctl reload nginx' --quiet --no-self-upgrade") | crontab -
 }
-
 
 
 panel_conf(){
