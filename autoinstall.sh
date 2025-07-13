@@ -234,7 +234,7 @@ create_node_in_db() {
         --overallocateMemory 0 \
         --maxDisk "$SAFE_DISK" \
         --overallocateDisk 0 \
-        --uploadSize 100 \
+        --uploadSize 1024 \
         --daemonBase /var/lib/pterodactyl \
         --daemonSFTPPort 2022 \
         --daemonListeningPort 8443 \
