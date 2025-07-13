@@ -197,43 +197,63 @@ EOF
   echo "[INFO] Node config.yml created for $NODE_FQDN"
 }
 
-create_node_in_db() {
-    LOC_NAME="lc.eu.made-by-orthodox-hosting"
-    NODE_NAME=$(echo "$NODEFQDN" | cut -d. -f1)
-    TOTAL_RAM=$(free -m | awk '/^Mem:/{print $2}')
-    SAFE_RAM=$((TOTAL_RAM)) # Leave 1GB for system
-    TOTAL_DISK=$(df -m / | awk 'NR==2{print $2}')
-    SAFE_DISK=$((TOTAL_DISK - 1024)) # Leave 1GB for system
+generate_node_config() {
+    echo "[INFO] Generating node config for $1"
+    NODE_FQDN="$1"
+    CONFIG_PATH="/etc/pterodactyl/config.yml"
 
-    cd /var/www/pterodactyl || { echo "[ERROR] Failed to cd to /var/www/pterodactyl"; return 1; }
-    
-    # First ensure the location exists and get its ID
-    LOCATION_ID=$(create_location_in_db)
-    if [ -z "$LOCATION_ID" ]; then
-        echo "[ERROR] Failed to get location ID"
-        return 1
+    # Get DB creds from .env
+    DB_PASS=$(grep DB_PASSWORD /var/www/pterodactyl/.env | cut -d'=' -f2-)
+    DB_USER=$(grep DB_USERNAME /var/www/pterodactyl/.env | cut -d'=' -f2-)
+    DB_NAME=$(grep DB_DATABASE /var/www/pterodactyl/.env | cut -d'=' -f2-)
+
+    # Get node ID from DB using FQDN
+    NODE_ID=$(mariadb -N -h 127.0.0.1 -u"$DB_USER" -p"$DB_PASS" -D"$DB_NAME" \
+        -e "SELECT id FROM nodes WHERE fqdn='${NODE_FQDN}';")
+    if [ -z "$NODE_ID" ]; then
+        echo "[ERROR] Could not find node ID for FQDN: $NODE_FQDN"
+        exit 1
     fi
 
-    echo "[INFO] Creating node $NODE_NAME in location $LOCATION_ID via artisan..."
-    sudo -u www-data php artisan p:node:make \
-        --name "$NODE_NAME" \
-        --description "Automatically created node" \
-        --locationId "1" \
-        --fqdn "$NODEFQDN" \
-        --public 1 \
-        --scheme https \
-        --proxy 1 \
-        --maintenance 0 \
-        --maxMemory "$SAFE_RAM" \
-        --overallocateMemory 0 \
-        --maxDisk "$SAFE_DISK" \
-        --overallocateDisk 0 \
-        --uploadSize 100 \
-        --daemonBase /var/lib/pterodactyl \
-        --daemonSFTPPort 2022 \
-        --daemonListeningPort 8448 \
-        --no-interaction
+    # Generate YAML config (decrypted token, correct format, etc)
+    sudo -u www-data php /var/www/pterodactyl/artisan p:node:configuration "$NODE_ID" > "$CONFIG_PATH"
+    chown root:root "$CONFIG_PATH"
+    chmod 600 "$CONFIG_PATH"
+
+    # You can now edit config with yq if needed:
+    #   Change port, SSL location, trusted proxies, etc.
+    #   Example, force port to 8448, SSL cert, and add trusted proxies
+
+    if command -v yq >/dev/null 2>&1; then
+        yq -i '
+          .api.port = 8448 |
+          .api.ssl.cert = "/etc/letsencrypt/live/'"$NODE_FQDN"'/fullchain.pem" |
+          .api.ssl.key = "/etc/letsencrypt/live/'"$NODE_FQDN"'/privkey.pem" |
+          .api.trusted_proxies = [
+            "173.245.48.0/20",
+            "103.21.244.0/22",
+            "103.22.200.0/22",
+            "103.31.4.0/22",
+            "141.101.64.0/18",
+            "108.162.192.0/18",
+            "190.93.240.0/20",
+            "188.114.96.0/20",
+            "197.234.240.0/22",
+            "198.41.128.0/17",
+            "162.158.0.0/15",
+            "104.16.0.0/13",
+            "104.24.0.0/14",
+            "172.64.0.0/13",
+            "131.0.72.0/22"
+          ]
+        ' "$CONFIG_PATH"
+    else
+        echo "[WARNING] yq not found, skipping config patching!"
+    fi
+
+    echo "[INFO] Node config.yml for $NODE_FQDN ready at $CONFIG_PATH"
 }
+
 panel_conf(){
     echo "[INFO] Starting panel configuration..."
 
