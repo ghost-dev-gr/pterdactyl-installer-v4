@@ -237,7 +237,7 @@ create_node_in_db() {
         --uploadSize 100 \
         --daemonBase /var/lib/pterodactyl \
         --daemonSFTPPort 2022 \
-        --daemonListeningPort 8448 \
+        --daemonListeningPort 8443 \
         --no-interaction
 }
 
@@ -248,7 +248,22 @@ setup_nginx_for_node() {
   SSL_CERT="/etc/letsencrypt/live/${NODEFQDN}/fullchain.pem"
   SSL_KEY="/etc/letsencrypt/live/${NODEFQDN}/privkey.pem"
 
-  # Create Nginx config for this node
+  # HTML to show if browser (no Authorization header)
+  HTML_FILE="/var/www/html/node-landing.html"
+  mkdir -p /var/www/html
+  cat > "$HTML_FILE" <<HTML
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Node</title>
+</head>
+<body>
+  <h1 style="font-family: monospace; text-align: center; margin-top: 30vh;">made by orthodox market</h1>
+</body>
+</html>
+HTML
+
+  # Nginx config: Show HTML if NO Authorization header, else proxy to Wings
   cat > "$NGINX_CONF_PATH" <<EOF
 server {
     listen 443 ssl http2;
@@ -256,33 +271,39 @@ server {
 
     ssl_certificate     $SSL_CERT;
     ssl_certificate_key $SSL_KEY;
-
-    # Highly recommended SSL settings (edit as needed)
     ssl_protocols TLSv1.2 TLSv1.3;
     ssl_prefer_server_ciphers on;
 
-    # Proxy requests to Wings (node daemon)
+    # If Authorization header is present, proxy to Wings
     location / {
-        proxy_pass https://127.0.0.1:8443;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_ssl_verify off;
+        # If the request has an Authorization header, proxy to Wings
+        if (\$http_authorization != "") {
+            proxy_pass https://127.0.0.1:8443;
+            proxy_set_header Host \$host;
+            proxy_set_header X-Real-IP \$remote_addr;
+            proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto \$scheme;
+            proxy_ssl_verify off;
+            break;
+        }
+        # Otherwise, serve the custom HTML page
+        root /var/www/html;
+        index node-landing.html;
+        try_files /node-landing.html =404;
     }
 }
 EOF
 
-  # Enable the site
   ln -sf "$NGINX_CONF_PATH" "$NGINX_LINK_PATH"
   nginx -t && systemctl reload nginx
 
   echo "[INFO] Nginx config for $NODEFQDN created & enabled."
 
-  # Ensure automatic cert renewal (add to root's crontab if not already present)
+  # Automatic cert renew as before
   crontab -l 2>/dev/null | grep -q 'certbot renew' || \
   (crontab -l 2>/dev/null; echo "0 4 * * * certbot renew --deploy-hook 'systemctl reload nginx' --quiet --no-self-upgrade") | crontab -
 }
+
 
 
 panel_conf(){
