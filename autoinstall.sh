@@ -315,6 +315,14 @@ EOF
   (crontab -l 2>/dev/null; echo "0 4 * * * certbot renew --deploy-hook 'systemctl reload nginx' --quiet --no-self-upgrade") | crontab -
 }
 
+ensure_cloudflare_creds() {
+    if [ ! -f /root/.cloudflare-creds.ini ]; then
+        cat >/root/.cloudflare-creds.ini <<EOF
+dns_cloudflare_api_token = 1TwYcHQmGN21zHJc5EcNraEFvY77zfU940Z6dKYu
+EOF
+        chmod 600 /root/.cloudflare-creds.ini
+    fi
+}
 
 panel_conf(){
     echo "[INFO] Starting panel configuration..."
@@ -381,16 +389,20 @@ panel_conf(){
     systemctl enable --now redis-server
     systemctl enable --now pteroq.service
 
+
     if [ "$SSL" == true ]; then
         echo "[INFO] Setting up nginx with SSL for the panel..."
         rm -rf /etc/nginx/sites-enabled/default
         curl -o /etc/nginx/sites-enabled/pterodactyl.conf https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/configs/pterodactyl-nginx-ssl.conf
         sed -i -e "s@<domain>@${PANELFQDN}@g" /etc/nginx/sites-enabled/pterodactyl.conf
         systemctl stop nginx
-        if ! certbot certonly --standalone -d $PANELFQDN --non-interactive --staple-ocsp --no-eff-email -m $EMAIL --agree-tos; then
-          echo "[WARNING] Certbot failed for $PANELFQDN."
-          echo "[WARNING] This is probably because DNS is not pointing to this server."
-          echo "[WARNING] The script will continue, but your node will not have a valid SSL certificate."
+        ensure_cloudflare_creds
+        if ! certbot certonly --dns-cloudflare --dns-cloudflare-credentials /root/.cloudflare-creds.ini \
+            --dns-cloudflare-propagation-seconds 30 \
+            -d $PANELFQDN --non-interactive --agree-tos -m $EMAIL; then
+          echo "[WARNING] Certbot (Cloudflare DNS) failed for $PANELFQDN."
+          echo "[WARNING] This is probably because DNS or API token is not correct."
+          echo "[WARNING] The script will continue, but your panel will not have a valid SSL certificate."
           echo "[WARNING] You must fix DNS and run certbot manually for $PANELFQDN."
         fi
         #certbot certonly --standalone -d $PANELFQDN --non-interactive --staple-ocsp --no-eff-email -m $EMAIL --agree-tos
@@ -460,9 +472,12 @@ wings_install_and_activate(){
 
     echo "[INFO] Requesting SSL certificate for node domain $NODEFQDN..."
     systemctl stop nginx
-    if ! certbot certonly --standalone --non-interactive --preferred-challenges http -d "$NODEFQDN" --agree-tos --no-eff-email -m "$EMAIL"; then
-        echo "[WARNING] Certbot failed for $NODEFQDN."
-        echo "[WARNING] This is probably because DNS is not pointing to this server."
+    ensure_cloudflare_creds
+     if ! certbot certonly --dns-cloudflare --dns-cloudflare-credentials /root/.cloudflare-creds.ini \
+        --dns-cloudflare-propagation-seconds 30 \
+        -d "$NODEFQDN" --non-interactive --agree-tos -m "$EMAIL"; then
+        echo "[WARNING] Certbot (Cloudflare DNS) failed for $NODEFQDN."
+        echo "[WARNING] This is probably because DNS or API token is not correct."
         echo "[WARNING] The script will continue, but your node will not have a valid SSL certificate."
         echo "[WARNING] You must fix DNS and run certbot manually for $NODEFQDN."
     fi
@@ -491,6 +506,7 @@ panel_install(){
     apt-get update
 
     apt-get install -y software-properties-common curl apt-transport-https language-pack-en-base ca-certificates gnupg lsb-release gpg
+    apt-get install -y python3-certbot-dns-cloudflare
 
     export LC_ALL=en_US.UTF-8
     export LANG=en_US.UTF-8
