@@ -454,7 +454,12 @@ wings_install_and_activate(){
 
     echo "[INFO] Requesting SSL certificate for node domain $NODEFQDN..."
     systemctl stop nginx
-    certbot certonly --standalone --non-interactive --preferred-challenges http -d "$NODEFQDN" --agree-tos --no-eff-email -m "$EMAIL"
+    if ! certbot certonly --standalone --non-interactive --preferred-challenges http -d "$NODEFQDN" --agree-tos --no-eff-email -m "$EMAIL"; then
+        echo "[WARNING] Certbot failed for $NODEFQDN."
+        echo "[WARNING] This is probably because DNS is not pointing to this server."
+        echo "[WARNING] The script will continue, but your node will not have a valid SSL certificate."
+        echo "[WARNING] You must fix DNS and run certbot manually for $NODEFQDN."
+    fi
     systemctl start nginx
     systemctl daemon-reload
     systemctl enable --now wings
