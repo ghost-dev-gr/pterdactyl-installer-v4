@@ -387,7 +387,13 @@ panel_conf(){
         curl -o /etc/nginx/sites-enabled/pterodactyl.conf https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/configs/pterodactyl-nginx-ssl.conf
         sed -i -e "s@<domain>@${PANELFQDN}@g" /etc/nginx/sites-enabled/pterodactyl.conf
         systemctl stop nginx
-        certbot certonly --standalone -d $PANELFQDN --non-interactive --staple-ocsp --no-eff-email -m $EMAIL --agree-tos
+        if ! certbot certonly --standalone -d $PANELFQDN --non-interactive --staple-ocsp --no-eff-email -m $EMAIL --agree-tos; then
+          echo "[WARNING] Certbot failed for $PANELFQDN."
+          echo "[WARNING] This is probably because DNS is not pointing to this server."
+          echo "[WARNING] The script will continue, but your node will not have a valid SSL certificate."
+          echo "[WARNING] You must fix DNS and run certbot manually for $PANELFQDN."
+        fi
+        #certbot certonly --standalone -d $PANELFQDN --non-interactive --staple-ocsp --no-eff-email -m $EMAIL --agree-tos
         systemctl start nginx
     else
         echo "[INFO] Setting up nginx without SSL for the panel..."
