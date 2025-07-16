@@ -93,7 +93,7 @@ api:
     cert: $SSL_CERT
     key: $SSL_KEY
   disable_remote_download: false
-  upload_limit: 100
+  upload_limit: 1024
   trusted_proxies:
     - 173.245.48.0/20
     - 103.21.244.0/22
