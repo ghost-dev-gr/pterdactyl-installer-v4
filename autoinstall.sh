@@ -545,7 +545,8 @@ panel_install(){
     rm panel.tar.gz
     if [ -d "panel" ]; then
         mv panel/* ./
-        mv panel/.* ./
+        mv panel/.[!.]* ./ 2>/dev/null || true
+        mv panel/..?* ./ 2>/dev/null || true
         rmdir panel
     fi
     
