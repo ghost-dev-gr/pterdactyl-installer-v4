@@ -521,7 +521,7 @@ panel_install(){
     update-alternatives --set php /usr/bin/php8.3
     curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
-    curl -sL https://deb.nodesource.com/setup_14.x | sudo -E bash -
+    curl -sL https://deb.nodesource.com/setup_20.x | sudo -E bash -
     apt-get install -y nodejs
 
     mkdir -p /var/www/pterodactyl
