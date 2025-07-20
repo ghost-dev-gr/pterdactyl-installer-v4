@@ -363,16 +363,16 @@ panel_conf(){
         npm install -g yarn || { echo "[ERROR] Could not install yarn!"; exit 1; }
     fi
     chown -R www-data:www-data /var/www
-    export NODE_OPTIONS=--openssl-legacy-provider
 
     sudo -u www-data yarn install || { echo "[ERROR] yarn install failed!"; exit 1; }
-    if sudo -u www-data yarn build:production; then
-        echo "[INFO] Frontend assets built (production)."
-    elif sudo -u www-data yarn build; then
-        echo "[INFO] Frontend assets built (dev fallback)."
+    if sudo -u www-data env NODE_OPTIONS=--openssl-legacy-provider yarn build:production; then
+      echo "[INFO] Frontend assets built (production)."
+    elif sudo -u www-data env NODE_OPTIONS=--openssl-legacy-provider yarn build; then
+      echo "[INFO] Frontend assets built (dev fallback)."
     else
-        echo "[ERROR] Frontend build failed. See output above."; exit 1
+      echo "[ERROR] Frontend build failed. See output above."; exit 1
     fi
+
 
     echo "[INFO] Generating app key and config cache..."
     sudo -u www-data php artisan key:generate --force
