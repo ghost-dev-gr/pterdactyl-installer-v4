@@ -426,6 +426,10 @@ install_golang() {
   tar -C /usr/local -xzf /tmp/go.tar.gz
   echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile
   source /etc/profile
+  export PATH=$PATH:/usr/local/go/bin
+}
+
+add_custom_proxy_to_wings() {
   echo "=> Downloading router_server_proxy.go to /srv/wings/router/"
   mkdir -p /srv/wings/router || { echo "Failed to create /srv/wings/router"; exit 1; }
 
@@ -440,10 +444,6 @@ install_golang() {
     echo "Router file not found at $ROUTER_FILE - endpoints NOT added!"
   fi
   export PATH=$PATH:/usr/local/go/bin
-}
-
-add_custom_proxy_to_wings() {
-  
 
   cd /srv/wings || exit 1
   systemctl stop wings || echo "Warning: Wings wasn't running, continuing..."
