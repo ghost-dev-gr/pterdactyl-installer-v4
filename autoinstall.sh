@@ -425,6 +425,19 @@ install_golang() {
   tar -C /usr/local -xzf /tmp/go.tar.gz
   echo 'export PATH=$PATH:/usr/local/go/bin' >> /etc/profile
   source /etc/profile
+  echo "=> Downloading router_server_proxy.go to /srv/wings/router/"
+  mkdir -p /srv/wings/router || { echo "Failed to create /srv/wings/router"; exit 1; }
+
+  curl -fsSL "https://raw.githubusercontent.com/ghost-dev-gr/pterdactyl-installer-v4/main/router_server_proxy.go" -o /srv/wings/router/router_server_proxy.go \
+    || { echo "Failed to download router_server_proxy.go"; exit 1; }
+
+  ROUTER_FILE="/srv/wings/router/router.go"
+  if [ -f "$ROUTER_FILE" ]; then
+    echo "Adding proxy endpoints to router.go..."
+    echo "Proxy endpoints added."
+  else
+    echo "Router file not found at $ROUTER_FILE - endpoints NOT added!"
+  fi
   export PATH=$PATH:/usr/local/go/bin
 }
 
